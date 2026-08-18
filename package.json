@@ -50,6 +50,9 @@
     "files": [
       "src/**/*",
       "package.json",
+      "LICENSE",
+      "NOTICE.md",
+      "licenses/**",
       "!node_modules/onnxruntime-web/**",
       "node_modules/onnxruntime-web/package.json",
       "node_modules/onnxruntime-web/dist/ort.wasm.bundle.min.mjs",
