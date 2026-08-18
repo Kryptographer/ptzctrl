@@ -139,6 +139,34 @@ npm test
 
 ## License
 
-[MIT](LICENSE). The bundled VitTrack model is Apache-2.0, from the
-[OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/object_tracking_vittrack)
-(see [`src/models/LICENSE`](src/models/LICENSE)).
+PTZ CTRL is [MIT](LICENSE) — use it, change it, ship it, sell it, as long as
+the copyright notice and licence text travel with it.
+
+Builds also contain third-party software under its own terms:
+
+- The **VitTrack** tracking model is Apache-2.0, from the
+  [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/object_tracking_vittrack)
+  (see [`src/models/LICENSE`](src/models/LICENSE)).
+- The bundled **ffmpeg** binary is **GPL-3.0-or-later**. It is run as a
+  separate program, not linked, and the app works with any system ffmpeg
+  instead — but if you redistribute an installer containing it, the GPL's
+  source-availability obligation comes with it.
+- **Electron**, **Chromium**, **ONNX Runtime Web** and **Koffi** ship under
+  MIT/BSD terms.
+
+Full details, and how to build without the GPL'd binary:
+**[NOTICE.md](NOTICE.md)**.
+
+## Disclaimer
+
+PTZ CTRL is provided **as is**, without warranty of any kind, express or
+implied — see the [licence](LICENSE) for the full text. It drives physical
+hardware over a network, and cameras, firmware and networks all vary: test
+your setup before you rely on it. It is not designed or certified for
+safety-critical use, and the authors and contributors accept no liability for
+missed shots, damaged equipment or any other loss arising from its use.
+
+PTZ CTRL is an independent project and is not affiliated with or endorsed by
+Microsoft, Sony, PTZOptics, Fomako, Tongveo or any other manufacturer;
+trademarks are used only to describe compatibility
+(see [NOTICE.md](NOTICE.md#trademarks)).

@@ -6,6 +6,13 @@ they are listed by date rather than version.
 
 ## Unreleased
 
+- **Third-party notices** — new [`NOTICE.md`](NOTICE.md) covering everything an
+  installer redistributes: the bundled ffmpeg binary (GPL-3.0-or-later, run as
+  a separate process, with source locations and how to build without it),
+  Electron/Chromium, ONNX Runtime Web, Koffi and the VitTrack model, plus a
+  trademark statement. `LICENSE`, `NOTICE.md` and `licenses/` now ship inside
+  the packaged app, and the README gained explicit licence and disclaimer
+  sections.
 - Camera credentials embedded in a stream URL are now stripped from error
   messages before they reach the live view, so a password can't ride along
   into a screenshot or a bug report.
