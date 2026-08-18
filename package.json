@@ -1,0 +1,82 @@
+{
+  "name": "ptzctrl",
+  "productName": "PTZ CTRL",
+  "version": "1.9.0",
+  "description": "Control VISCA-over-IP PTZ cameras (Tongveo, Fomako, etc.) with an Xbox controller",
+  "keywords": [
+    "ptz",
+    "visca",
+    "visca-over-ip",
+    "ptz-camera",
+    "xbox-controller",
+    "gamepad",
+    "rtsp",
+    "onvif",
+    "electron",
+    "broadcast",
+    "object-tracking"
+  ],
+  "homepage": "https://github.com/Kryptographer/ptzctrl#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kryptographer/ptzctrl.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Kryptographer/ptzctrl/issues"
+  },
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "test": "node test/run-control-tests.js && node test/run-tests.js"
+  },
+  "author": "ptzctrl",
+  "license": "MIT",
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0",
+    "onnxruntime-web": "1.27.0"
+  },
+  "optionalDependencies": {
+    "koffi": "^3.1.1"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.ptzctrl.app",
+    "productName": "PTZ CTRL",
+    "files": [
+      "src/**/*",
+      "package.json",
+      "!node_modules/onnxruntime-web/**",
+      "node_modules/onnxruntime-web/package.json",
+      "node_modules/onnxruntime-web/dist/ort.wasm.bundle.min.mjs",
+      "node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm",
+      "!node_modules/onnxruntime-common/**",
+      "!node_modules/flatbuffers/**",
+      "!node_modules/guid-typescript/**",
+      "!node_modules/long/**",
+      "!node_modules/platform/**",
+      "!node_modules/protobufjs/**",
+      "!node_modules/@protobufjs/**"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**",
+      "node_modules/koffi/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png"
+    }
+  }
+}

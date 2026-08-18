@@ -1,0 +1,80 @@
+name: Bug report
+description: Something in PTZ CTRL doesn't work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The camera details below matter more than usual
+        here — most bugs turn out to be a specific camera's VISCA or RTSP quirk.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        1. Added the camera on UDP 1259
+        2. Pushed the left stick right
+        3. The camera panned left instead
+    validations:
+      required: true
+
+  - type: input
+    id: camera
+    attributes:
+      label: Camera make and model
+      placeholder: Tongveo 20x conference cam / PTZOptics 20X-SDI / …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Connection
+      options:
+        - VISCA UDP 1259
+        - VISCA UDP 52381 (Sony framing)
+        - VISCA TCP 5678
+        - USB / capture device (UVC)
+        - Video-only IP camera (RTSP / MJPEG stream URL)
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: PTZ CTRL version
+      description: Shown in the installer filename, or the `version` field in package.json.
+      placeholder: "1.9.0"
+
+  - type: input
+    id: controller
+    attributes:
+      label: Controller (if relevant)
+      placeholder: Xbox Wireless Controller (Bluetooth) / Xbox Adaptive Controller / none
+
+  - type: textarea
+    id: status-line
+    attributes:
+      label: Status line / error text
+      description: Anything the status bar at the bottom of the app said, verbatim.
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, network setup, other software that talks to the same camera…

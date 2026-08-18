@@ -1,0 +1,54 @@
+name: Camera compatibility report
+description: Tell us a camera works — or how it fails
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These reports build the compatibility list. Working cameras are just as
+        useful to hear about as broken ones.
+
+  - type: input
+    id: camera
+    attributes:
+      label: Camera make and model
+    validations:
+      required: true
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Works fully (PTZ + presets + video)
+        - PTZ works, video doesn't
+        - Video works, PTZ doesn't
+        - Doesn't work at all
+    validations:
+      required: true
+
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Protocol that worked (or that you tried)
+      options:
+        - VISCA UDP 1259
+        - VISCA UDP 52381 (Sony framing)
+        - VISCA TCP 5678
+        - USB / capture device (UVC)
+        - Video-only IP camera (RTSP / MJPEG stream URL)
+    validations:
+      required: true
+
+  - type: input
+    id: stream-url
+    attributes:
+      label: Working stream URL pattern
+      description: With any credentials removed.
+      placeholder: rtsp://<ip>:554/1
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Settings you had to change on the camera, quirks, anything that tripped you up.

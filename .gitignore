@@ -1,0 +1,11 @@
+node_modules/
+dist/
+out/
+*.log
+.DS_Store
+
+# Local secrets / machine-specific config — never commit
+.env
+.env.*
+*.local
+ptzctrl-config.json

@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setup help — cameras, protocols, streams
+    url: https://github.com/Kryptographer/ptzctrl/blob/HEAD/docs/cameras.md
+    about: Protocol/port tables, stream URL patterns and a troubleshooting table.
+  - name: Controller mapping and control feel
+    url: https://github.com/Kryptographer/ptzctrl/blob/HEAD/docs/controller.md
+    about: Default layout, rebinding, presets, adaptive controllers, movement tuning.
+  - name: AI subject tracking
+    url: https://github.com/Kryptographer/ptzctrl/blob/HEAD/docs/tracking.md
+    about: How tracking works, its settings, and the optional higher-accuracy model.

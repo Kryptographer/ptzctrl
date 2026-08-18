@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' blob: data:; connect-src 'self' http://127.0.0.1:*" />
+  <title>PTZ CTRL</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">PTZ <span>CTRL</span></div>
+    <div class="topbar-status">
+      <div id="gamepadStatus" class="pill pill-off" role="status">No controller</div>
+      <div id="activeCamPill" class="pill pill-off">No active camera</div>
+      <div id="speedPill" class="pill pill-plain">Speed 100%</div>
+      <button id="stopAllBtn" class="btn btn-danger"
+              title="Stop every camera immediately (Esc Esc)">STOP ALL</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" id="tabbtn-cameras" role="tab" aria-selected="true"
+            aria-controls="tab-cameras" data-tab="cameras">Cameras</button>
+    <button class="tab" id="tabbtn-grid" role="tab" aria-selected="false" tabindex="-1"
+            aria-controls="tab-grid" data-tab="grid">Multiview</button>
+    <button class="tab" id="tabbtn-controller" role="tab" aria-selected="false" tabindex="-1"
+            aria-controls="tab-controller" data-tab="controller">Controller</button>
+    <button class="tab" id="tabbtn-settings" role="tab" aria-selected="false" tabindex="-1"
+            aria-controls="tab-settings" data-tab="settings">Settings</button>
+  </nav>
+
+  <main>
+    <!-- ============================ CAMERAS ============================ -->
+    <section id="tab-cameras" class="tabpane active" role="tabpanel"
+             aria-labelledby="tabbtn-cameras" tabindex="0">
+      <div class="cam-layout">
+        <div class="col">
+          <section class="card" aria-labelledby="h-mycameras">
+            <div class="card-head">
+              <h2 id="h-mycameras">My cameras</h2>
+              <span class="hint">Click to select · click the name to rename · ⌄ for settings</span>
+            </div>
+            <div id="cameraList" class="camera-list" role="listbox"
+                 aria-labelledby="h-mycameras"></div>
+          </section>
+
+          <section class="card" aria-labelledby="h-addcameras">
+            <div class="card-head">
+              <h2 id="h-addcameras">Add cameras</h2>
+              <button id="discoverBtn" class="btn btn-primary btn-sm">Scan network</button>
+            </div>
+            <p class="hint">Finds VISCA-over-IP cameras (Tongveo, Fomako, PTZOptics, Sony…) on your
+              network, plus USB cameras and capture cards on this PC.</p>
+            <div id="discoverStatus" class="hint" role="status"></div>
+            <div id="discoveredList" class="camera-list"></div>
+            <h3 class="card-subhead" id="h-localdevices">This PC — USB cameras &amp; capture cards</h3>
+            <div id="localList" class="camera-list" aria-labelledby="h-localdevices"></div>
+            <details class="add-manual">
+              <summary>Add PTZ camera by IP address (VISCA)…</summary>
+              <form id="addCameraForm" class="form-grid">
+                <label>Name <input type="text" id="addName" placeholder="Conference Cam 1" /></label>
+                <label>IP address <input type="text" id="addIp" placeholder="192.168.1.100" required
+                                         pattern="^\d{1,3}(\.\d{1,3}){3}$" aria-describedby="addIpNote" /></label>
+                <p class="field-note" id="addIpNote">Four numbers separated by dots, for example
+                  <code>192.168.1.100</code>. Find it in the camera's on-screen menu or your router.</p>
+                <label>Port <input type="number" id="addPort" value="1259" min="1" max="65535" /></label>
+                <label>Protocol
+                  <select id="addProtocol">
+                    <option value="udp">VISCA UDP (port 1259)</option>
+                    <option value="udp-sony">VISCA UDP Sony framing (port 52381)</option>
+                    <option value="tcp">VISCA TCP (port 5678)</option>
+                  </select>
+                </label>
+                <button type="submit" class="btn btn-primary">Add camera</button>
+              </form>
+            </details>
+            <details class="add-manual">
+              <summary>Add any IP camera by stream URL (NVR / Yi / phone / RTSP / MJPEG)…</summary>
+              <form id="addStreamForm" class="form-grid">
+                <label>Name <input type="text" id="addStreamName" placeholder="Backyard cam" /></label>
+                <label>Stream URL <input type="text" id="addStreamUrl" placeholder="rtsp://user:pass@192.168.1.50:554/…" required /></label>
+                <button type="submit" class="btn btn-primary">Add video-only camera</button>
+              </form>
+              <p class="hint">
+                Common URLs — Hikvision cam/NVR: <code>rtsp://user:pass@ip:554/Streaming/Channels/101</code>
+                (NVR channel 2 = 201…) · Dahua/Amcrest: <code>rtsp://user:pass@ip:554/cam/realmonitor?channel=1&amp;subtype=0</code>
+                · Yi (RTSP firmware): <code>rtsp://ip/ch0_0.h264</code> · Android IP Webcam:
+                <code>http://phone-ip:8080/video</code>. These play in Live view and Multiview;
+                PTZ control needs a VISCA camera. Cloud-only cameras (e.g. Amazon Blink) don't
+                expose a local stream and can't be pulled in by any app.
+              </p>
+            </details>
+            <details class="add-manual">
+              <summary>Use an Android phone as a wireless camera…</summary>
+              <ol class="hint steps">
+                <li>Install a camera-server app on the phone — <em>IP Webcam</em> (free) works great.</li>
+                <li>Connect the phone to the <em>same Wi-Fi network</em> as this PC.</li>
+                <li>In the app, tap <em>Start server</em> — it shows an address like <code>http://192.168.1.23:8080</code>.</li>
+                <li>Click <em>Scan network</em> above — the phone appears under discovered devices; click <em>Add</em>.
+                    (Or add <code>http://&lt;phone-ip&gt;:8080/video</code> via the stream URL form.)</li>
+              </ol>
+            </details>
+          </section>
+        </div>
+
+        <div class="col">
+          <section class="card card--feature" aria-labelledby="h-liveview">
+            <div class="card-head">
+              <h2 id="h-liveview">Live view</h2>
+              <button id="liveToggleBtn" class="btn btn-primary btn-sm" aria-pressed="false">Start</button>
+            </div>
+            <div class="live-frame">
+              <img id="liveImg" alt="" />
+              <video id="liveVideo" class="hidden" muted playsinline></video>
+              <canvas id="trackCanvas" class="track-canvas" aria-hidden="true"></canvas>
+              <div id="liveOverlay" class="live-overlay" role="status">Live view is off
+Press Start to watch the active camera.</div>
+            </div>
+            <label class="live-url">Stream URL (RTSP) for <span id="liveCamName">—</span>
+              <input type="text" id="liveUrlInput" placeholder="rtsp://192.168.1.100:554/1" />
+            </label>
+            <div class="live-actions">
+              <button id="findStreamBtn" class="btn btn-sm">Find stream automatically</button>
+              <button id="trackBtn" class="btn btn-sm" aria-pressed="false">◎ Track subject</button>
+            </div>
+            <p class="hint">Follows the active camera. Most Tongveo / Fomako cameras stream at
+              <code>rtsp://&lt;ip&gt;:554/1</code> (main) or <code>/2</code> (sub, lower latency).
+              No video? <em>Find stream</em> probes the common paths and picks one that works.
+              <em>Track subject</em> draws a box around a person and the camera follows them —
+              move the stick or press <kbd>Esc</kbd> to take back control. Tuning lives under
+              Settings → AI subject tracking.</p>
+          </section>
+
+          <section class="card" aria-labelledby="h-onscreen">
+            <div class="card-head">
+              <h2 id="h-onscreen">On-screen control</h2>
+              <span class="hint">Drives the active camera. Hold to move.</span>
+            </div>
+            <div class="osc">
+              <div class="osc-pad" role="group" aria-label="Pan and tilt">
+                <button class="osc-btn" data-pan="-1" data-tilt="1" aria-label="Pan left and tilt up"><span aria-hidden="true">↖</span></button>
+                <button class="osc-btn" data-pan="0" data-tilt="1" aria-label="Tilt up"><span aria-hidden="true">▲</span></button>
+                <button class="osc-btn" data-pan="1" data-tilt="1" aria-label="Pan right and tilt up"><span aria-hidden="true">↗</span></button>
+                <button class="osc-btn" data-pan="-1" data-tilt="0" aria-label="Pan left"><span aria-hidden="true">◀</span></button>
+                <button class="osc-btn osc-home" id="oscHomeBtn" aria-label="Home position" title="Home position"><span aria-hidden="true">⌂</span></button>
+                <button class="osc-btn" data-pan="1" data-tilt="0" aria-label="Pan right"><span aria-hidden="true">▶</span></button>
+                <button class="osc-btn" data-pan="-1" data-tilt="-1" aria-label="Pan left and tilt down"><span aria-hidden="true">↙</span></button>
+                <button class="osc-btn" data-pan="0" data-tilt="-1" aria-label="Tilt down"><span aria-hidden="true">▼</span></button>
+                <button class="osc-btn" data-pan="1" data-tilt="-1" aria-label="Pan right and tilt down"><span aria-hidden="true">↘</span></button>
+              </div>
+              <div class="osc-col">
+                <div class="osc-group-label" id="oscZoomLabel">Zoom</div>
+                <button class="osc-btn wide" id="oscZoomIn">Zoom +</button>
+                <button class="osc-btn wide" id="oscZoomOut">Zoom −</button>
+                <div class="osc-group-label" id="oscFocusLabel">Focus</div>
+                <button class="osc-btn wide" id="oscFocusFar">Focus far</button>
+                <button class="osc-btn wide" id="oscFocusNear">Focus near</button>
+                <button class="osc-btn wide" id="oscFocusAuto">Auto focus</button>
+              </div>
+              <div class="osc-col">
+                <label class="osc-group-label" for="oscSpeed">Speed</label>
+                <input type="range" id="oscSpeed" min="0.05" max="1" step="0.05" />
+                <div class="osc-group-label" id="oscPresetLabel">Presets — <label class="osc-savemode"><input type="checkbox" id="presetSaveMode" /> save mode</label></div>
+                <div class="osc-presets" id="oscPresets" role="group" aria-labelledby="oscPresetLabel"></div>
+                <p class="hint" id="oscPresetHint">Click to recall. Tick <em>save mode</em>, then click to store the current position.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================== MULTIVIEW =========================== -->
+    <section id="tab-grid" class="tabpane" role="tabpanel"
+             aria-labelledby="tabbtn-grid" tabindex="0">
+      <div class="grid-toolbar">
+        <span class="hint"><em>Click a tile</em> to control that camera with the Xbox controller / on-screen pad. Streams stop when you leave this tab.</span>
+        <button id="gridRefreshBtn" class="btn btn-sm">Restart streams</button>
+      </div>
+      <div id="gridWall" class="grid-wall"></div>
+    </section>
+
+    <!-- =========================== CONTROLLER ========================== -->
+    <section id="tab-controller" class="tabpane" role="tabpanel"
+             aria-labelledby="tabbtn-controller" tabindex="0">
+      <div class="ctl-layout">
+        <section class="card ctl-input" aria-labelledby="h-liveinput">
+          <div class="card-head"><h2 id="h-liveinput">Live input</h2></div>
+          <label class="device-picker" for="gamepadSelect">Active controller
+            <select id="gamepadSelect"><option value="">Auto (first connected)</option></select>
+          </label>
+          <p class="hint device-hint">Works with standard Xbox controllers and the Xbox Adaptive
+            Controller / Adaptive Joystick (they report as standard). If several controllers are
+            connected, pick the one to drive cameras here. Leave on <em>Auto</em> for background
+            control while the window is unfocused; a manually picked device only works while the
+            window is focused.</p>
+          <div class="pads">
+            <div class="stick-view">
+              <div class="stick-label" id="stickLLabel">Left stick</div>
+              <div class="stick-area" role="img" aria-labelledby="stickLLabel"><div id="stickL" class="stick-dot"></div></div>
+            </div>
+            <div class="stick-view">
+              <div class="stick-label" id="stickRLabel">Right stick</div>
+              <div class="stick-area" role="img" aria-labelledby="stickRLabel"><div id="stickR" class="stick-dot"></div></div>
+            </div>
+            <div class="triggers">
+              <div class="trigger-row"><span>LT</span><div class="bar"><div id="barLT" class="bar-fill"></div></div></div>
+              <div class="trigger-row"><span>RT</span><div class="bar"><div id="barRT" class="bar-fill"></div></div></div>
+            </div>
+          </div>
+          <div id="buttonLights" class="button-lights" role="group" aria-label="Button activity"></div>
+        </section>
+
+        <section class="card ctl-mapping" aria-labelledby="h-mapping">
+          <div class="card-head">
+            <h2 id="h-mapping">Button &amp; axis mapping</h2>
+            <div id="resetMappingSlot">
+              <button id="resetMappingBtn" class="btn btn-sm">Reset to defaults</button>
+            </div>
+          </div>
+          <p class="hint">
+            Click <em>Rebind</em> then press the controller button (or move the
+            axis) you want to use. Click <em>Clear</em> to unassign.
+            <em>Save a preset:</em> just <strong>hold</strong> its button for a moment
+            (tap recalls) — no shift needed, great for the adaptive joystick. You can also
+            hold <em>Preset shift</em> + a preset, or arm <em>Preset save mode</em> and tap.
+          </p>
+          <div id="mappingList" class="mapping-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ============================ SETTINGS =========================== -->
+    <section id="tab-settings" class="tabpane" role="tabpanel"
+             aria-labelledby="tabbtn-settings" tabindex="0">
+      <section class="card settings-card" aria-labelledby="h-controlfeel">
+        <div class="card-head"><h2 id="h-controlfeel">Control feel</h2></div>
+        <div class="form-grid">
+          <label>Stick deadzone <span id="deadzoneVal" class="val"></span>
+            <input type="range" id="deadzone" min="0" max="0.5" step="0.01" />
+          </label>
+          <label>Speed multiplier <span id="speedMultVal" class="val"></span>
+            <input type="range" id="speedMultiplier" min="0.05" max="1" step="0.05" />
+          </label>
+          <label>Response curve (higher = finer control near center) <span id="curveVal" class="val"></span>
+            <input type="range" id="speedCurve" min="1" max="4" step="0.1" />
+          </label>
+          <label>Pan sensitivity <span id="panSensVal" class="val"></span>
+            <input type="range" id="panSensitivity" min="0.1" max="1" step="0.05" />
+          </label>
+          <label>Tilt sensitivity <span id="tiltSensVal" class="val"></span>
+            <input type="range" id="tiltSensitivity" min="0.1" max="1" step="0.05" />
+          </label>
+          <label>Zoom sensitivity <span id="zoomSensVal" class="val"></span>
+            <input type="range" id="zoomSensitivity" min="0.1" max="1" step="0.05" />
+          </label>
+          <label>Motion smoothing — ramp-up time (0 = instant) <span id="rampTimeVal" class="val"></span>
+            <input type="range" id="rampTime" min="0" max="1.5" step="0.05" />
+          </label>
+          <label>Precision mode speed (while holding the precision button) <span id="precisionScaleVal" class="val"></span>
+            <input type="range" id="precisionScale" min="0.05" max="0.5" step="0.05" />
+          </label>
+          <label>Max pan speed <span id="maxPanVal" class="val"></span>
+            <input type="range" id="maxPanSpeed" min="1" max="24" step="1" />
+          </label>
+          <label>Max tilt speed <span id="maxTiltVal" class="val"></span>
+            <input type="range" id="maxTiltSpeed" min="1" max="20" step="1" />
+          </label>
+          <label>Max zoom speed <span id="maxZoomVal" class="val"></span>
+            <input type="range" id="maxZoomSpeed" min="1" max="7" step="1" />
+          </label>
+          <label class="check"><input type="checkbox" id="invertPan" /> Invert pan</label>
+          <label class="check"><input type="checkbox" id="invertTilt" /> Invert tilt</label>
+        </div>
+      </section>
+
+      <section class="card settings-card" aria-labelledby="h-tracking">
+        <div class="card-head"><h2 id="h-tracking">AI subject tracking</h2></div>
+        <p class="hint">On the Cameras tab, click <em>◎ Track subject</em> under the live view and
+          drag a box around a person or object — the camera pans/tilts on its own to keep them
+          centered. While the subject stands still the camera holds perfectly still, and it
+          starts following the moment they actually move. The tracker runs fully on-device
+          (no internet, no GPU). Moving the stick, pressing Esc, or STOP ALL instantly hands
+          control back to you; a <em>Stop AI tracking</em> button can also be bound on the
+          Controller tab.</p>
+        <div class="form-grid">
+          <label>Tracking speed limit (top speed the tracker may use) <span id="trackSpeedVal" class="val"></span>
+            <input type="range" id="trackSpeed" min="0.1" max="1" step="0.05" />
+          </label>
+          <label>Responsiveness (higher = corrects off-center subjects harder) <span id="trackResponseVal" class="val"></span>
+            <input type="range" id="trackResponse" min="0.5" max="3" step="0.1" />
+          </label>
+          <label>Center deadzone (no movement while the subject is this close to center) <span id="trackDeadbandVal" class="val"></span>
+            <input type="range" id="trackDeadband" min="0.02" max="0.25" step="0.01" />
+          </label>
+          <label class="check"><input type="checkbox" id="trackInvertPan" /> Invert tracking pan — tick if the camera follows left/right the wrong way (mirrored image)</label>
+          <label class="check"><input type="checkbox" id="trackInvertTilt" /> Invert tracking tilt — tick if the camera follows up/down the wrong way (flipped image)</label>
+        </div>
+      </section>
+
+      <section class="card settings-card" aria-labelledby="h-presets">
+        <div class="card-head"><h2 id="h-presets">Presets &amp; saving</h2></div>
+        <p class="hint">Save presets straight from the controller — no two-button chord. This is built
+          for the <strong>Xbox Adaptive Controller / adaptive joystick</strong>, where holding a shift
+          button and pressing a preset at the same time is hard. <strong>Tap</strong> a preset button to
+          recall it; <strong>hold</strong> it to store the current position. Prefer a single press? Bind a
+          <em>Preset save mode</em> button on the Controller tab to arm saving, then tap a preset.</p>
+        <div class="form-grid">
+          <label class="check"><input type="checkbox" id="presetHoldToSave" /> Hold a preset button to save it (tap = recall)</label>
+          <label>Hold-to-save time <span id="presetHoldVal" class="val"></span>
+            <input type="range" id="presetHoldMs" min="400" max="2000" step="100" />
+          </label>
+        </div>
+      </section>
+
+      <section class="card settings-card" aria-labelledby="h-shortcuts">
+        <div class="card-head"><h2 id="h-shortcuts">Keyboard shortcuts</h2></div>
+        <div class="form-grid">
+          <p class="hint"><kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>4</kbd> — jump to Cameras, Multiview, Controller, Settings</p>
+          <p class="hint"><kbd>←</kbd> <kbd>→</kbd> on the tab strip — move between tabs</p>
+          <p class="hint"><kbd>↑</kbd> <kbd>↓</kbd> in the camera list — change the active camera</p>
+          <p class="hint"><kbd>Esc</kbd> — cancel a rebind, or stop AI tracking</p>
+          <p class="hint"><kbd>Esc</kbd> <kbd>Esc</kbd> (twice, quickly) — STOP ALL cameras</p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="statusbar">
+    <span id="statusMsg" role="status" aria-live="polite">
+      <span class="status-kind"></span><span class="status-text"></span>
+    </span>
+    <span class="shortcut-hint"><kbd>Esc</kbd> <kbd>Esc</kbd> stops all cameras</span>
+  </footer>
+
+  <script src="mjpeg.js"></script>
+  <script src="feeds.js"></script>
+  <script src="gamepad.js"></script>
+  <script src="vittrack.js"></script>
+  <script src="tracker.js"></script>
+  <script src="renderer.js"></script>
+  <!-- Deferred by nature (type=module): runs after the classic scripts above
+       and resolves the ortReady promise tracker.js sets up. -->
+  <script type="module" src="ort-loader.mjs"></script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="squircle">
+      <rect x="0" y="0" width="1024" height="1024" rx="232" ry="232"/>
+    </clipPath>
+    <linearGradient id="bg" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#0b1119"/>
+      <stop offset="0.55" stop-color="#131c27"/>
+      <stop offset="1" stop-color="#1b2c38"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="0.82" cy="0.18" r="0.7">
+      <stop offset="0" stop-color="#1e4a52" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#1e4a52" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lens" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d6a70"/>
+      <stop offset="1" stop-color="#0e3d47"/>
+    </linearGradient>
+    <linearGradient id="neon" x1="0" y1="0.5" x2="1" y2="0.5">
+      <stop offset="0" stop-color="#2fe6c8"/>
+      <stop offset="1" stop-color="#4fdc1e"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <g clip-path="url(#squircle)">
+    <!-- background -->
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+    <rect width="1024" height="1024" fill="url(#bgGlow)"/>
+
+    <!-- camera -->
+    <g filter="url(#drop)">
+      <!-- viewfinder bump -->
+      <rect x="238" y="222" width="102" height="70" rx="18" fill="#f4f6f8"/>
+      <!-- top hump -->
+      <path d="M 388 282 L 418 216 Q 428 196 452 196 L 600 196 Q 624 196 634 216 L 664 282 Z" fill="#f4f6f8"/>
+      <!-- body -->
+      <rect x="188" y="268" width="648" height="420" rx="64" fill="#f4f6f8"/>
+      <!-- indicator dot -->
+      <circle cx="762" cy="352" r="24" fill="#3ecf5a"/>
+    </g>
+    <!-- lens (partly hidden by the pad) -->
+    <g>
+      <circle cx="512" cy="490" r="212" fill="#1c2734"/>
+      <circle cx="512" cy="490" r="168" fill="#f4f6f8"/>
+      <circle cx="512" cy="490" r="148" fill="#1d2836"/>
+      <circle cx="512" cy="490" r="104" fill="url(#lens)"/>
+      <circle cx="512" cy="490" r="58" fill="#111d26"/>
+      <circle cx="452" cy="428" r="20" fill="#f4f6f8" opacity="0.35"/>
+    </g>
+
+    <!-- gamepad -->
+    <g>
+      <!-- neon glow -->
+      <path d="M 512 660
+               C 604 660, 696 667, 723 690
+               C 761 722, 786 832, 782 910
+               C 778 968, 743 1014, 692 1014
+               C 650 1014, 623 980, 606 943
+               C 593 916, 566 908, 512 908
+               C 458 908, 431 916, 418 943
+               C 401 980, 374 1014, 332 1014
+               C 281 1014, 246 968, 242 910
+               C 238 832, 263 722, 301 690
+               C 328 667, 420 660, 512 660 Z"
+            fill="none" stroke="url(#neon)" stroke-width="22" filter="url(#soft)" opacity="0.6"/>
+      <!-- body with neon rim -->
+      <path d="M 512 660
+               C 604 660, 696 667, 723 690
+               C 761 722, 786 832, 782 910
+               C 778 968, 743 1014, 692 1014
+               C 650 1014, 623 980, 606 943
+               C 593 916, 566 908, 512 908
+               C 458 908, 431 916, 418 943
+               C 401 980, 374 1014, 332 1014
+               C 281 1014, 246 968, 242 910
+               C 238 832, 263 722, 301 690
+               C 328 667, 420 660, 512 660 Z"
+            fill="#2b323e" stroke="url(#neon)" stroke-width="14"/>
+
+      <!-- d-pad -->
+      <g fill="#5a6270">
+        <rect x="376" y="700" width="52" height="150" rx="14"/>
+        <rect x="327" y="749" width="150" height="52" rx="14"/>
+      </g>
+
+      <!-- face buttons -->
+      <g fill="#5a6270">
+        <circle cx="678" cy="714" r="21"/>
+        <circle cx="678" cy="790" r="21"/>
+        <circle cx="640" cy="752" r="21"/>
+        <circle cx="716" cy="752" r="21"/>
+      </g>
+
+      <!-- sticks -->
+      <g>
+        <circle cx="470" cy="866" r="46" fill="#454d5b"/>
+        <circle cx="470" cy="866" r="30" fill="#59616f"/>
+        <circle cx="618" cy="866" r="46" fill="#454d5b"/>
+        <circle cx="618" cy="866" r="30" fill="#59616f"/>
+        <rect x="524" y="860" width="40" height="13" rx="6.5" fill="#454d5b"/>
+      </g>
+    </g>
+  </g>
+</svg>
