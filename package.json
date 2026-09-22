@@ -29,7 +29,7 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "test": "node test/run-control-tests.js && node test/run-tests.js"
+    "test": "node test/run-control-tests.js && node test/run-tests.js && node test/run-ui-tests.js"
   },
   "author": "ptzctrl",
   "license": "MIT",

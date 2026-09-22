@@ -24,7 +24,7 @@ npm start     # launch the app
 npm test      # headless test suite — no Electron, no camera needed
 ```
 
-`npm test` runs two plain Node scripts:
+`npm test` runs three plain Node scripts:
 
 - `test/run-control-tests.js` — the control path: VISCA command pacing and
   coalescing, stop repeats, and the post-preset drive hold-off.
@@ -32,7 +32,10 @@ npm test      # headless test suite — no Electron, no camera needed
   tracking stability layer under closed-loop simulation, and an end-to-end run
   of the real bundled model.
 
-Both must pass before a pull request can be merged; CI runs them on Linux,
+- `test/run-ui-tests.js` — keyboard and pointer release behavior, plus cancelled
+  and superseded live-stream startup.
+
+All must pass before a pull request can be merged; CI runs them on Linux,
 macOS and Windows.
 
 ## Working on the code

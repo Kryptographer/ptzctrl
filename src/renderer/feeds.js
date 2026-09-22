@@ -134,9 +134,12 @@
         this.videoEl.srcObject = stream;
         this.videoEl.muted = true;
         try { await this.videoEl.play(); } catch { /* autoplay quirks */ }
+        // play() may settle after Stop or a replacement feed owns this video.
+        if (this.stopped || this.stream !== stream) return;
         this.onStatus(null);
         this.onTrack(stream.getVideoTracks()[0] || null);
       } catch (err) {
+        if (this.stopped) return;
         this.onStatus(`Device error: ${err.message || err.name}. Is it in use by another app?`);
       }
     }
