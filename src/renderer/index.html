@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' blob: data:; connect-src 'self' http://127.0.0.1:*" />
   <title>PTZ CTRL</title>
   <link rel="stylesheet" href="styles.css" />
@@ -33,12 +34,13 @@
     <!-- ============================ CAMERAS ============================ -->
     <section id="tab-cameras" class="tabpane active" role="tabpanel"
              aria-labelledby="tabbtn-cameras" tabindex="0">
+      <div class="workspace-heading"><div><span class="eyebrow">PTZ CTRL / 01 — Workspace</span><h1>Every angle. Under control.</h1></div><p>Select a camera. Frame your shot. Keep the focus.</p></div>
       <div class="cam-layout">
         <div class="col">
           <section class="card" aria-labelledby="h-mycameras">
             <div class="card-head">
               <h2 id="h-mycameras">My cameras</h2>
-              <span class="hint">Click to select · click the name to rename · ⌄ for settings</span>
+              <span class="hint">Select · rename · ⌄ settings</span>
             </div>
             <div id="cameraList" class="camera-list" role="listbox"
                  aria-labelledby="h-mycameras"></div>
@@ -123,18 +125,18 @@ Press Start to watch the active camera.</div>
               <button id="findStreamBtn" class="btn btn-sm">Find stream automatically</button>
               <button id="trackBtn" class="btn btn-sm" aria-pressed="false">◎ Track subject</button>
             </div>
-            <p class="hint">Follows the active camera. Most Tongveo / Fomako cameras stream at
+            <details class="live-guide"><summary>Stream &amp; tracking help</summary><p class="hint">Follows the active camera. Most Tongveo / Fomako cameras stream at
               <code>rtsp://&lt;ip&gt;:554/1</code> (main) or <code>/2</code> (sub, lower latency).
               No video? <em>Find stream</em> probes the common paths and picks one that works.
               <em>Track subject</em> draws a box around a person and the camera follows them —
               move the stick or press <kbd>Esc</kbd> to take back control. Tuning lives under
-              Settings → AI subject tracking.</p>
+              Settings → AI subject tracking.</p></details>
           </section>
 
           <section class="card" aria-labelledby="h-onscreen">
             <div class="card-head">
               <h2 id="h-onscreen">On-screen control</h2>
-              <span class="hint">Drives the active camera. Hold to move.</span>
+              <span class="hint">Hold a button or Space / Enter to move.</span>
             </div>
             <div class="osc">
               <div class="osc-pad" role="group" aria-label="Pan and tilt">
@@ -173,6 +175,7 @@ Press Start to watch the active camera.</div>
     <!-- =========================== MULTIVIEW =========================== -->
     <section id="tab-grid" class="tabpane" role="tabpanel"
              aria-labelledby="tabbtn-grid" tabindex="0">
+      <div class="workspace-heading"><div><span class="eyebrow">PTZ CTRL / 02 — Workspace</span><h1>The whole picture.</h1></div><p>Every feed in one place. Select a tile to take control.</p></div>
       <div class="grid-toolbar">
         <span class="hint"><em>Click a tile</em> to control that camera with the Xbox controller / on-screen pad. Streams stop when you leave this tab.</span>
         <button id="gridRefreshBtn" class="btn btn-sm">Restart streams</button>
@@ -183,6 +186,7 @@ Press Start to watch the active camera.</div>
     <!-- =========================== CONTROLLER ========================== -->
     <section id="tab-controller" class="tabpane" role="tabpanel"
              aria-labelledby="tabbtn-controller" tabindex="0">
+      <div class="workspace-heading"><div><span class="eyebrow">PTZ CTRL / 03 — Workspace</span><h1>Make it feel natural.</h1></div><p>Your controller. Your controls.</p></div>
       <div class="ctl-layout">
         <section class="card ctl-input" aria-labelledby="h-liveinput">
           <div class="card-head"><h2 id="h-liveinput">Live input</h2></div>
@@ -233,6 +237,7 @@ Press Start to watch the active camera.</div>
     <!-- ============================ SETTINGS =========================== -->
     <section id="tab-settings" class="tabpane" role="tabpanel"
              aria-labelledby="tabbtn-settings" tabindex="0">
+      <div class="workspace-heading"><div><span class="eyebrow">PTZ CTRL / 04 — Workspace</span><h1>Fine-tune your setup.</h1></div><p>Dial in movement, tracking and presets.</p></div>
       <section class="card settings-card" aria-labelledby="h-controlfeel">
         <div class="card-head"><h2 id="h-controlfeel">Control feel</h2></div>
         <div class="form-grid">

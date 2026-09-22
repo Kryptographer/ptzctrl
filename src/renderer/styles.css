@@ -1,52 +1,35 @@
-/* ==========================================================================
-   PTZ CTRL — design system & app shell
-   Fixed shell (header / tabs / status bar) with per-tab fluid layouts that
-   reflow to ANY window size. Nothing may ever overflow horizontally: the
-   shell is pinned to the viewport and every flex/grid child carries
-   min-width: 0.
-
-   Craft rules this sheet holds itself to:
-     · flat colour only — no gradients, no glows (emphasis comes from
-       weight, contrast and space)
-     · no pure black / pure white — every neutral comes off one tuned ramp
-     · one spacing scale (4px), one type scale (5 sizes)
-     · one elevation language: hairline borders for structure, shadows are
-       reserved for surfaces that genuinely float above the page
-     · every interactive element has hover / focus-visible / active /
-       disabled designed; every async surface has empty + error states
-     · named-property transitions at 120–180ms; nothing loops for decoration
-   ========================================================================== */
+/* PTZ CTRL — Aspen-inspired editorial grid, mint accents and accessible controls. */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* --- neutral ramp (low → high elevation). No #000, no #fff. --------- */
-  --bg-0: #0d0f14;      /* app ground */
-  --bg-1: #13161d;      /* cards */
-  --bg-2: #1a1e28;      /* controls on a card */
-  --bg-3: #232837;      /* raised / hovered control */
-  --bg-video: #08090c;  /* video letterbox — near-black, still on the ramp */
+  /* --- light surfaces ------------------------------------------------ */
+  --bg-0: #f1f2ee;      /* app ground */
+  --bg-1: #ffffff;      /* cards */
+  --bg-2: #f3f4f0;      /* controls on a card */
+  --bg-3: #e6e9e3;      /* raised / hovered control */
+  --bg-video: #202321;  /* video letterbox — near-black, still on the ramp */
 
-  --border: #262c3b;
-  --border-strong: #3d4459;
+  --border: #cbd0c8;
+  --border-strong: #858f85;
 
-  /* --- text (all AA-contrast on bg-0..bg-2) --------------------------- */
-  --text-1: #e8ebf3;
-  --text-2: #a8b1c4;
-  --text-3: #838da1;    /* 5.0:1 on --bg-2, 5.6:1 on --bg-1 */
+  /* --- text ---------------------------------------------------------- */
+  --text-1: #202521;
+  --text-2: #465048;
+  --text-3: #59635a;
 
   /* --- accent -------------------------------------------------------- */
-  --accent: #5b8def;        /* fills, borders, focus rings */
-  --accent-hover: #7ba5f4;  /* accent as text on a dark surface */
-  --accent-soft: #22314d;   /* muted accent fill */
-  --accent-ink: #08111f;    /* text ON an accent fill — 5.9:1 */
+  --accent: #176947;        /* fills, borders, focus rings */
+  --accent-hover: #105338;  /* accent as text on a dark surface */
+  --accent-soft: #a4fccb;   /* muted accent fill */
+  --accent-ink: #ffffff;    /* text on an accent fill */
 
   /* --- signal -------------------------------------------------------- */
-  --ok: #34d399;
-  --err: #f4706f;
-  --warn: #f5b942;
-  --live: #3ddc84;          /* "this one is on air" — tuned, not neon */
-  --live-ink: #06180f;
+  --ok: #176947;
+  --err: #ad302c;
+  --warn: #83580e;
+  --live: #176947;          /* "this one is on air" — tuned, not neon */
+  --live-ink: #ffffff;
 
   /* --- spacing: one 4px scale ---------------------------------------- */
   --sp-1: 4px;
@@ -64,9 +47,9 @@
   --fs-lg: 15px;      /* feature panel titles */
   --fs-xl: 19px;      /* the one display size */
 
-  --radius: 10px;
-  --radius-sm: 6px;
-  --radius-xs: 4px;
+  --radius: 0px;
+  --radius-sm: 2px;
+  --radius-xs: 2px;
 
   /* Offset focus ring — readable on every surface in the app. */
   --ring: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--accent);
@@ -1391,4 +1374,75 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: var(--ring
 }
 @media (max-width: 760px) {
   .statusbar .shortcut-hint { display: none; }
+}
+
+/* Editorial shell: prominent type, ruled sections and a generous monitor. */
+.topbar { padding: 16px 28px; min-height: 76px; }
+.brand { font-size: 28px; letter-spacing: -1.8px; font-weight: 750; }
+.brand span { color: var(--text-1); font-weight: 400; }
+.brand::before { content: "↗"; display: inline-block; margin-right: 14px;
+  padding: 5px 10px; background: var(--text-1); color: var(--accent-soft); }
+.pill { border-radius: 2px; background: transparent; }
+.btn { height: 36px; }
+.btn-primary { background: var(--text-1); border-color: var(--text-1); color: white; }
+.btn-primary:hover { background: #35483d; border-color: #35483d; }
+.btn-danger { background: #fff3f1; }
+.btn-danger-solid { color: white; }
+.tabs { padding: 0 28px; gap: 0; }
+.tab { padding: 17px 24px; border-right: 1px solid var(--border); border-radius: 0; }
+.tab:first-child { border-left: 1px solid var(--border); }
+.tab[aria-selected="true"] { background: var(--accent-soft); }
+.tab[aria-selected="true"]::after { left: 0; right: 0; height: 3px; border-radius: 0; }
+.tabpane.active { padding: 24px 28px; }
+.workspace-heading { display: flex; justify-content: space-between; align-items: end;
+  gap: 16px; padding-bottom: 24px; flex: none; }
+.workspace-heading h1 { font-size: clamp(30px, 3.7vw, 52px); line-height: 1.05;
+  font-weight: 500; letter-spacing: -0.055em; }
+.workspace-heading p { max-width: 32ch; color: var(--text-2); line-height: 1.5; }
+.eyebrow { display: block; font: 10px var(--font-mono); letter-spacing: .12em;
+  text-transform: uppercase; margin-bottom: 10px; color: var(--text-3); }
+.cam-layout { grid-template-columns: minmax(280px, .75fr) minmax(0, 1.65fr); gap: 20px; }
+.cam-layout > .col { gap: 20px; }
+.card { padding: 20px; }
+.card-head { padding-bottom: 16px; margin-bottom: 16px; }
+.card-head h2, .card--feature .card-head h2 { font-size: 17px; font-weight: 500;
+  text-transform: none; letter-spacing: -.035em; color: var(--text-1); }
+.camera-item { border-radius: 0; }
+.camera-item[aria-selected="true"] { background: #e3fced; border-color: var(--accent); }
+.cam-num { border-radius: 0; font-family: var(--font-mono); }
+.empty-msg { padding: 24px 12px; text-align: left; }
+.empty-msg strong { font-size: 23px; font-weight: 450; letter-spacing: -.04em; margin-bottom: 12px; }
+.live-frame { border-radius: 0; }
+.tile-overlay, .tile-name { color: #e4e9e3; }
+.tile-ctl { color: #a4fccb; }
+.tile-live { color: #ff9b96; }
+.live-overlay { color: #e4e9e3; font-size: 14px; line-height: 1.7; }
+.live-guide { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+.live-guide summary { cursor: pointer; color: var(--text-2); font-size: 12px; }
+.live-guide p { margin-top: 10px; }
+.osc { justify-content: space-between; }
+.osc-btn { touch-action: none; }
+.osc-btn.held { background: var(--accent-soft); color: var(--text-1); }
+.statusbar { min-height: 38px; }
+#tab-settings .settings-card { max-width: none; }
+#trackBtn.track-on { background: var(--accent-soft); color: var(--text-1); }
+#trackBtn.track-on:hover { background: #86eab3; border-color: var(--accent); }
+@media (max-width: 940px) {
+  .cam-layout { grid-template-columns: minmax(0, 1fr); }
+  .cam-layout > .col:last-child { order: -1; }
+}
+@media (max-width: 600px) {
+  .topbar { padding: 12px; }
+  .topbar-status { justify-content: flex-start; flex-basis: 100%; }
+  .tabs { padding: 0; }
+  .tab { flex: 1; padding: 14px 8px; }
+  .tabpane.active { padding: 16px 12px; }
+  .workspace-heading { align-items: start; flex-direction: column; padding-bottom: 18px; }
+  .workspace-heading p { max-width: none; }
+  .card { padding: 16px; }
+}
+@media (max-height: 650px) and (min-width: 941px) {
+  .workspace-heading { padding-bottom: 16px; }
+  .workspace-heading h1 { font-size: 30px; }
+  .topbar { min-height: 60px; padding-block: 10px; }
 }

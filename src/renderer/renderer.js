@@ -107,6 +107,7 @@ function showTab(next, { focus = false } = {}) {
   if (!btn) return;
   if (focus) btn.focus();
   if (next === currentTab) return;
+  releaseOnScreenControls();
   // Roving tabindex: only the selected tab is in the tab order, arrows move
   // between them — the WAI-ARIA tabs pattern.
   for (const t of tabButtons) {
@@ -506,6 +507,7 @@ async function ctlPresetRecall(cam, n) {
 }
 
 function ctlStopAll() {
+  releaseOnScreenControls();
   tracker.cancel('Tracking stopped.');
   uvcStopAll();
   manualDrive.pan = manualDrive.tilt = manualDrive.zoom = manualDrive.focus = 0;
@@ -845,6 +847,7 @@ $('cameraList').addEventListener('keydown', (e) => {
 });
 
 async function selectCamera(id) {
+  releaseOnScreenControls();
   const prev = activeCamera();
   if (prev && prev.id !== id) handoffDrive(prev);
   else if (!prev) engine.rearmOutputs(); // held stick reaches the first camera too
@@ -951,6 +954,7 @@ function updateLiveCard() {
 }
 
 let liveFeed = null;
+let liveGeneration = 0;
 
 async function ffmpegMissingMessage() {
   const diag = await window.ptz.streamDiagnose();
@@ -959,6 +963,7 @@ async function ffmpegMissingMessage() {
 }
 
 async function startLive() {
+  const generation = ++liveGeneration;
   const cam = activeCamera();
   if (!cam) return;
   // Restarting the stream means a new camera/URL — never track across that.
@@ -996,7 +1001,14 @@ async function startLive() {
     return;
   }
 
-  const missing = await ffmpegMissingMessage();
+  let missing;
+  try { missing = await ffmpegMissingMessage(); }
+  catch (err) {
+    if (generation === liveGeneration && liveOn) liveOverlay(`Stream error: ${err.message}`);
+    return;
+  }
+  // Stop or a newer selection invalidates a pending diagnostic response.
+  if (generation !== liveGeneration || !liveOn) return;
   if (missing) {
     liveOverlay(missing);
     return;
@@ -1013,6 +1025,7 @@ async function startLive() {
 }
 
 function stopLive() {
+  ++liveGeneration;
   liveOn = false;
   liveCamId = null;
   tracker.setSource(null); // cancels tracking if it was running
@@ -1253,10 +1266,17 @@ $('gridRefreshBtn').addEventListener('click', () => {
 // On-screen control (mouse/touch PTZ for when no controller is around)
 // ---------------------------------------------------------------------------
 
-/** Wire press-and-hold behavior: start on press, stop on release/leave. */
+// Release the original gesture before hiding controls or changing cameras.
+const onScreenReleases = new Set();
+function releaseOnScreenControls() {
+  for (const release of onScreenReleases) release();
+}
+
+/** Pointer and keyboard gestures share one idempotent stop path. */
 function holdControl(el, start, stop) {
   let held = false;
   const down = (e) => {
+    if (el.disabled || (e.type === 'pointerdown' && e.button !== 0)) return;
     e.preventDefault();
     if (held) return;
     held = true;
@@ -1269,12 +1289,20 @@ function holdControl(el, start, stop) {
     el.classList.remove('held');
     stop();
   };
+  onScreenReleases.add(up);
   el.addEventListener('pointerdown', down);
-  el.addEventListener('pointerup', up);
-  el.addEventListener('pointerleave', up);
-  el.addEventListener('pointercancel', up);
-  // Releasing outside the button must still stop motion.
+  for (const type of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) {
+    el.addEventListener(type, up);
+  }
+  el.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') down(e);
+  });
+  el.addEventListener('keyup', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); up(); }
+  });
   window.addEventListener('pointerup', up);
+  window.addEventListener('blur', up);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) up(); });
 }
 
 function oscSpeeds() {
