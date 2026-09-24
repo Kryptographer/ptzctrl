@@ -39,7 +39,7 @@ contextBridge.exposeInMainWorld('ptz', {
 
   // native controller (read in the main process via XInput so it keeps
   // working when the app window is unfocused). Emits a standard-mapping pad
-  // snapshot, or null when no controller is connected.
+  // snapshot array, empty when no controller is connected.
   onNativeGamepad: (cb) => {
     const listener = (e, pad) => cb(pad);
     ipcRenderer.on('gamepad:native', listener);

@@ -712,10 +712,20 @@ function renderCameras() {
       renderCameras();
     });
 
-    row.append(num, name, addr, dot, dotText, expandBtn);
+    const controlBtn = document.createElement('button');
+    controlBtn.className = 'btn btn-sm';
+    controlBtn.textContent = isActive ? 'Controlling' : 'Control';
+    controlBtn.setAttribute('aria-label', `Control ${cam.name}`);
+    controlBtn.setAttribute('aria-pressed', String(isActive));
+    controlBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectCamera(cam.id);
+    });
+    row.append(num, name, addr, dot, dotText, controlBtn, expandBtn);
     item.appendChild(row);
     item.addEventListener('click', () => selectCamera(cam.id));
     item.addEventListener('keydown', (e) => {
+      if (e.target !== item) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         selectCamera(cam.id);
@@ -727,6 +737,7 @@ function renderCameras() {
       const detail = document.createElement('div');
       detail.className = 'cam-detail';
       detail.addEventListener('click', (e) => e.stopPropagation());
+      detail.addEventListener('keydown', (e) => e.stopPropagation());
 
       const rowA = document.createElement('div');
       rowA.className = 'cam-detail-row';
@@ -846,17 +857,29 @@ $('cameraList').addEventListener('keydown', (e) => {
   if (next) next.focus({ preventScroll: false });
 });
 
+let cameraSelectionRevision = 0;
+
 async function selectCamera(id) {
+  if (!config.cameras.some((c) => c.id === id) || config.activeCameraId === id) return;
+  const revision = ++cameraSelectionRevision;
   releaseOnScreenControls();
   const prev = activeCamera();
   if (prev && prev.id !== id) handoffDrive(prev);
   else if (!prev) engine.rearmOutputs(); // held stick reaches the first camera too
-  config.activeCameraId = await window.ptz.setActiveCamera(id);
+  // Change the target in the same turn as the stop/rearm. An IPC wait here
+  // lets the next controller poll restart the old camera instead.
+  config.activeCameraId = id;
   renderCameras();
   updateLiveCard();
   updateGridActive();
   const cam = activeCamera();
   if (cam) setStatus(`Active camera: ${cam.name}`);
+  try {
+    const savedId = await window.ptz.setActiveCamera(id);
+    if (revision === cameraSelectionRevision && savedId !== id) await refreshConfig();
+  } catch (err) {
+    if (revision === cameraSelectionRevision) setError(`Could not save camera selection: ${err.message}`);
+  }
 }
 
 function stepCamera(dir) {
@@ -1825,6 +1848,7 @@ function setSliderValue(key, valId, fmt, v) {
 }
 
 function renderSettings() {
+  renderPreferences();
   for (const [key, valId, fmt] of SETTING_SLIDERS) {
     $(key).value = String(config.settings[key]);
     setSliderValue(key, valId, fmt, Number(config.settings[key]));
@@ -1835,6 +1859,34 @@ function renderSettings() {
   $('trackInvertPan').checked = !!config.settings.trackInvertPan;
   $('trackInvertTilt').checked = !!config.settings.trackInvertTilt;
   updateSpeedPill();
+}
+
+function renderPreferences() {
+  const theme = config.settings.theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = theme;
+  $('theme').value = theme;
+  const select = $('defaultCameraId');
+  select.innerHTML = '';
+  for (const cam of [{ id: '', name: 'Remember last selected camera' },
+    ...config.cameras.filter((c) => !isVideoOnly(c))]) {
+    const option = document.createElement('option');
+    option.value = cam.id;
+    option.textContent = cam.name;
+    select.appendChild(option);
+  }
+  select.value = config.settings.defaultCameraId || '';
+}
+
+for (const key of ['theme', 'defaultCameraId']) {
+  $(key).addEventListener('change', async () => {
+    const value = $(key).value || null;
+    config.settings[key] = value;
+    if (key === 'theme') document.documentElement.dataset.theme = value;
+    try {
+      await window.ptz.setSettings({ [key]: value });
+      setOk(key === 'theme' ? 'Theme saved.' : 'Default camera saved for next startup.');
+    } catch (err) { setError(`Could not save preference: ${err.message}`); }
+  });
 }
 
 function updateSpeedPill() {
@@ -1911,7 +1963,6 @@ function shortPadName(id) {
 
 function renderGamepadList(devices) {
   const sel = $('gamepadSelect');
-  const prev = sel.value;
   sel.innerHTML = '';
   const auto = document.createElement('option');
   auto.value = '';
@@ -1922,16 +1973,25 @@ function renderGamepadList(devices) {
   for (const d of devices) {
     const opt = document.createElement('option');
     opt.value = String(d.index);
-    opt.textContent = `#${d.index + 1} · ${shortPadName(d.id)}`;
+    opt.textContent = d.native
+      ? `${d.id} · XInput · background control`
+      : `#${d.index + 1} · ${shortPadName(d.id)} · Web · focused only`;
     sel.appendChild(opt);
   }
-  // keep the user's selection if that device is still present
-  if (prev && devices.some((d) => String(d.index) === prev)) sel.value = prev;
+  // Keep a disconnected pinned device explicit: never silently drive another.
+  const pinned = engine.pinnedIndex === null ? '' : String(engine.pinnedIndex);
+  if (pinned && !devices.some((d) => String(d.index) === pinned)) {
+    const missing = document.createElement('option');
+    missing.value = pinned;
+    missing.textContent = 'Selected controller disconnected — waiting to reconnect';
+    sel.appendChild(missing);
+  }
+  sel.value = pinned;
 }
 
 $('gamepadSelect').addEventListener('change', () => {
   const v = $('gamepadSelect').value;
-  engine.selectGamepad(v === '' ? null : Number(v));
+  engine.selectGamepad(v === '' ? null : v.startsWith('native:') ? v : Number(v));
   setStatus(v === '' ? 'Controller: auto-select' : 'Controller device pinned');
 });
 
@@ -2033,9 +2093,18 @@ $('stopAllBtn').addEventListener('click', () => {
 // ---------------------------------------------------------------------------
 
 async function refreshConfig() {
-  config = await window.ptz.getConfig();
+  const revision = cameraSelectionRevision;
+  const next = await window.ptz.getConfig();
+  if (revision !== cameraSelectionRevision) next.activeCameraId = config.activeCameraId;
+  const prev = activeCamera();
+  if (prev && prev.id !== next.activeCameraId) {
+    releaseOnScreenControls();
+    handoffDrive(prev);
+  }
+  config = next;
   engine.mapping = config.mapping;
   engine.settings = config.settings;
+  renderPreferences();
   renderCameras();
   autoTestCameras();
   updateLiveCard();

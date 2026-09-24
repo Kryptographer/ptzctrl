@@ -13,6 +13,8 @@ const DEFAULTS = {
   cameras: [],
   activeCameraId: null,
   settings: {
+    theme: 'dark',
+    defaultCameraId: null, // null = remember the last selected camera
     deadzone: 0.15,
     speedMultiplier: 1.0,
     invertPan: false,
@@ -112,10 +114,17 @@ class Store {
       if (cam.type === 'local' && !cam.presets) cam.presets = {};
       if (cam.type === 'visca' && !cam.streamUrl && cam.ip) cam.streamUrl = `rtsp://${cam.ip}:554/1`;
     }
+    const settings = { ...DEFAULTS.settings, ...(loaded.settings || {}) };
+    if (!cameras.some((c) => c.id === settings.defaultCameraId && c.type !== 'ip')) {
+      settings.defaultCameraId = null;
+    }
+    const activeCameraId = settings.defaultCameraId ||
+      (cameras.some((c) => c.id === loaded.activeCameraId) ? loaded.activeCameraId :
+        (cameras.find((c) => c.type !== 'ip') || cameras[0])?.id || null);
     return {
       cameras,
-      activeCameraId: loaded.activeCameraId ?? DEFAULTS.activeCameraId,
-      settings: { ...DEFAULTS.settings, ...(loaded.settings || {}) },
+      activeCameraId,
+      settings,
       mapping: {
         axes: { ...DEFAULTS.mapping.axes, ...((loaded.mapping || {}).axes || {}) },
         buttons: { ...DEFAULTS.mapping.buttons, ...((loaded.mapping || {}).buttons || {}) },
@@ -189,8 +198,10 @@ class Store {
 
   removeCamera(id) {
     this.data.cameras = this.data.cameras.filter((c) => c.id !== id);
+    if (this.data.settings.defaultCameraId === id) this.data.settings.defaultCameraId = null;
     if (this.data.activeCameraId === id) {
-      this.data.activeCameraId = this.data.cameras[0] ? this.data.cameras[0].id : null;
+      this.data.activeCameraId = this.data.settings.defaultCameraId ||
+        (this.data.cameras.find((c) => c.type !== 'ip') || this.data.cameras[0])?.id || null;
     }
     this.save();
   }
@@ -219,6 +230,12 @@ class Store {
   }
 
   setSettings(settings) {
+    settings = { ...settings };
+    if ('defaultCameraId' in settings && settings.defaultCameraId !== null &&
+        !this.data.cameras.some((c) => c.id === settings.defaultCameraId && c.type !== 'ip')) {
+      delete settings.defaultCameraId;
+    }
+    if ('theme' in settings && !['dark', 'light'].includes(settings.theme)) delete settings.theme;
     this.data.settings = { ...this.data.settings, ...settings };
     this.save();
     return this.data.settings;

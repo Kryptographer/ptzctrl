@@ -131,3 +131,10 @@ On **Windows**, the controller is read natively via XInput in the app's
 background process, so input keeps flowing even when the window is not
 focused — click into a browser or your slides and the sticks still move the
 camera. On macOS and Linux, control works while the window is focused.
+
+In the **Active controller** picker, choose **Auto** or an **XInput · background
+control** entry for this behavior. You can pin any connected XInput slot;
+its slot number is independent of the Web device number. A pinned controller
+that disconnects stops motion and waits for reconnection. **Web · focused only**
+entries stop controller motion when the window loses focus and resume when it
+regains focus. On-screen held buttons always release when focus is lost.

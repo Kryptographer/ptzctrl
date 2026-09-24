@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -195,9 +195,9 @@ Press Start to watch the active camera.</div>
           </label>
           <p class="hint device-hint">Works with standard Xbox controllers and the Xbox Adaptive
             Controller / Adaptive Joystick (they report as standard). If several controllers are
-            connected, pick the one to drive cameras here. Leave on <em>Auto</em> for background
-            control while the window is unfocused; a manually picked device only works while the
-            window is focused.</p>
+            connected, pick the one to drive cameras here. On Windows, choose an
+            <em>XInput · background control</em> device (or Auto) to keep control when you
+            click another app. Web devices pause when the window loses focus.</p>
           <div class="pads">
             <div class="stick-view">
               <div class="stick-label" id="stickLLabel">Left stick</div>
@@ -238,6 +238,19 @@ Press Start to watch the active camera.</div>
     <section id="tab-settings" class="tabpane" role="tabpanel"
              aria-labelledby="tabbtn-settings" tabindex="0">
       <div class="workspace-heading"><div><span class="eyebrow">PTZ CTRL / 04 — Workspace</span><h1>Fine-tune your setup.</h1></div><p>Dial in movement, tracking and presets.</p></div>
+      <section class="card settings-card" aria-labelledby="h-preferences">
+        <div class="card-head"><h2 id="h-preferences">Appearance &amp; startup</h2></div>
+        <div class="form-grid">
+          <label>Theme
+            <select id="theme"><option value="dark">Dark</option><option value="light">Light</option></select>
+          </label>
+          <label>Default camera for control
+            <select id="defaultCameraId" aria-describedby="defaultCameraNote"></select>
+          </label>
+          <p class="field-note" id="defaultCameraNote">Selected when the app starts. You can switch cameras at any time;
+            clicking outside the app keeps your active camera selected. Video-only cameras cannot be a control default.</p>
+        </div>
+      </section>
       <section class="card settings-card" aria-labelledby="h-controlfeel">
         <div class="card-head"><h2 id="h-controlfeel">Control feel</h2></div>
         <div class="form-grid">

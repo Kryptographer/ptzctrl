@@ -150,7 +150,7 @@ function startNativeGamepad() {
   nativePadTimer = setInterval(() => {
     if (!win || win.isDestroyed()) return;
     try {
-      win.webContents.send('gamepad:native', reader.readFirst());
+      win.webContents.send('gamepad:native', reader.readAll());
     } catch (_) {
       // window tearing down between the guard and the send — ignore
     }

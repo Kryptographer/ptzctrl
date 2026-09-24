@@ -132,3 +132,124 @@ test('USB playback settling after Stop cannot register a stopped track', async (
   assert.deepEqual(callbacks, [null]);
   assert.equal(video.srcObject, null);
 });
+
+function selectionHarness() {
+  const requests = [], stopped = [], targets = [];
+  const config = { cameras: ['a', 'b', 'c'].map(id => ({ id, name: id })), activeCameraId: 'a' };
+  const context = vm.createContext({
+    config,
+    activeCamera: () => config.cameras.find(c => c.id === config.activeCameraId),
+    releaseOnScreenControls() {}, handoffDrive: cam => stopped.push(cam.id),
+    engine: { rearmOutputs() {} }, renderCameras: () => targets.push(config.activeCameraId),
+    updateLiveCard() {}, updateGridActive() {}, setStatus() {}, setError() {}, refreshConfig() {},
+    window: { ptz: { setActiveCamera(id) { const d = deferred(); requests.push({ id, ...d }); return d.promise; } } },
+  });
+  vm.runInContext(section('let cameraSelectionRevision', "$('addCameraForm').addEventListener"), context);
+  return { context, config, requests, stopped, targets };
+}
+test('camera handoff is immediate and late IPC responses cannot restore an old target', async () => {
+  const h = selectionHarness();
+  const first = h.context.selectCamera('b');
+  assert.equal(h.config.activeCameraId, 'b', 'next controller poll must drive B before IPC resolves');
+  const second = h.context.selectCamera('c');
+  assert.equal(h.config.activeCameraId, 'c');
+  assert.deepEqual(h.stopped, ['a', 'b']);
+  h.requests[1].resolve('c'); await second;
+  h.requests[0].resolve('b'); await first;
+  assert.equal(h.config.activeCameraId, 'c');
+  assert.deepEqual(h.targets, ['b', 'c']);
+});
+test('rapid next-camera presses advance from the current target, not stale saved state', async () => {
+  const h = selectionHarness();
+  h.context.stepCamera(1); h.context.stepCamera(1);
+  assert.deepEqual(h.requests.map(r => r.id), ['b', 'c']);
+  h.requests.forEach(r => r.resolve(r.id));
+  await Promise.resolve();
+  await h.context.selectCamera('missing');
+  await h.context.selectCamera('c');
+  assert.equal(h.requests.length, 2);
+});
+
+const { Store } = require('../src/main/store');
+const os = require('node:os');
+const path = require('node:path');
+test('default camera and theme persist; missing defaults recover to a controllable camera', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ptz-preferences-'));
+  try {
+    let store = new Store(dir);
+    assert.equal(store.data.settings.theme, 'dark');
+    const video = store.addCamera({ type: 'ip', streamUrl: 'rtsp://example/video' });
+    const a = store.addCamera({ name: 'A', ip: '192.0.2.1' });
+    const b = store.addCamera({ name: 'B', ip: '192.0.2.2' });
+    store.setSettings({ defaultCameraId: b.id, theme: 'light' });
+    store.setActiveCamera(a.id);
+    store = new Store(dir);
+    assert.equal(store.data.activeCameraId, b.id);
+    assert.equal(store.data.settings.theme, 'light');
+    store.setSettings({ defaultCameraId: video.id });
+    assert.equal(store.data.settings.defaultCameraId, b.id, 'video-only default rejected');
+    store.removeCamera(b.id);
+    assert.equal(store.data.settings.defaultCameraId, null);
+    assert.equal(store.data.activeCameraId, a.id);
+    store.setActiveCamera(video.id);
+    assert.equal(new Store(dir).data.activeCameraId, video.id, 'remember-last still permits viewing video');
+    store.data.activeCameraId = 'deleted'; store.save();
+    assert.equal(new Store(dir).data.activeCameraId, a.id);
+    store.setSettings({ defaultCameraId: null });
+    store.removeCamera(a.id); store.removeCamera(video.id);
+    assert.equal(new Store(dir).data.activeCameraId, null);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+function inputHarness() {
+  let focused = true;
+  const web = { index: 0, id: 'Web', connected: true, axes: [1, 0, 0, 0],
+    buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+  const context = vm.createContext({ window: {}, navigator: { getGamepads: () => [web] },
+    document: { hasFocus: () => focused }, performance: { now: () => 100 } });
+  vm.runInContext(fs.readFileSync(require.resolve('../src/renderer/gamepad.js'), 'utf8'), context);
+  const engine = new context.window.GamepadEngine();
+  const { DEFAULTS } = require('../src/main/store');
+  engine.settings = { ...DEFAULTS.settings, rampTime: 0 };
+  engine.mapping = JSON.parse(JSON.stringify(DEFAULTS.mapping));
+  const drives = [];
+  engine.callbacks = { onPanTilt: (p, t) => drives.push([p, t]) };
+  return { engine, drives, web, blur: () => { focused = false; }, focus: () => { focused = true; } };
+}
+test('a pinned native controller keeps driving after blur and never falls back to another device', () => {
+  const h = inputHarness();
+  const first = { ...h.web, native: true, id: 'Native 0', index: 0 };
+  const second = { ...h.web, native: true, id: 'Native 1', index: 1 };
+  h.engine.setNativePad([first, second]);
+  h.engine.selectGamepad('native:1');
+  h.engine._poll();
+  h.blur(); h.engine._poll();
+  assert.equal(h.engine._gamepad(), second);
+  assert(h.drives.at(-1)[0] > 0);
+  h.engine.setNativePad([first]); h.engine._poll();
+  assert.equal(h.engine._gamepad(), null);
+  assert.deepEqual(h.drives.at(-1), [0, 0]);
+  h.engine.setNativePad([first, second]); h.engine._poll();
+  assert(h.drives.at(-1)[0] > 0);
+});
+test('Web input stops stale motion on blur and resumes on focus', () => {
+  const h = inputHarness();
+  h.engine.selectGamepad(0); h.engine._poll();
+  assert(h.drives.at(-1)[0] > 0);
+  h.blur(); h.engine._poll();
+  assert.deepEqual(h.drives.at(-1), [0, 0]);
+  h.focus(); h.engine._poll();
+  assert(h.drives.at(-1)[0] > 0);
+});
+test('native reader polls every connected slot but rate-limits absent slots', () => {
+  const { XInputReader } = require('../src/main/xinput');
+  const reader = new XInputReader();
+  const calls = [];
+  reader.available = true;
+  reader._readUser = index => { calls.push(index); return [0, 2].includes(index) ? { index } : null; };
+  assert.deepEqual(reader.readAll().map(p => p.index), [0, 2]);
+  assert.deepEqual(calls, [0, 1, 2, 3]);
+  calls.length = 0;
+  reader.readAll();
+  assert.deepEqual(calls, [0, 2]);
+});
