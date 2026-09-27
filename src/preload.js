@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('ptz', {
+  initialTheme: process.argv.includes('--ptz-theme=light') ? 'light' : 'dark',
   // config
   getConfig: () => ipcRenderer.invoke('config:get'),
   setMapping: (mapping) => ipcRenderer.invoke('config:setMapping', mapping),
@@ -39,7 +40,7 @@ contextBridge.exposeInMainWorld('ptz', {
 
   // native controller (read in the main process via XInput so it keeps
   // working when the app window is unfocused). Emits a standard-mapping pad
-  // snapshot, or null when no controller is connected.
+  // snapshot array, empty when no controller is connected.
   onNativeGamepad: (cb) => {
     const listener = (e, pad) => cb(pad);
     ipcRenderer.on('gamepad:native', listener);
@@ -57,4 +58,9 @@ contextBridge.exposeInMainWorld('ptz', {
   power: (id, on) => ipcRenderer.send('ptz:power', id, on),
   menu: (id) => ipcRenderer.send('ptz:menu', id),
   stopAll: () => ipcRenderer.send('ptz:stopAll'),
+  onStopAll: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('ptz:stopped', listener);
+    return () => ipcRenderer.removeListener('ptz:stopped', listener);
+  },
 });

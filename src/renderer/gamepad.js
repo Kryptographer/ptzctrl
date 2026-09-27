@@ -58,7 +58,7 @@ class GamepadEngine {
     this.capture = null;   // {cb} when rebinding
     this.captureBaseline = null; // axis values when capture started
     this.running = false;
-    this.pinnedIndex = null; // user-chosen device; null = auto (first active)
+    this.pinnedIndex = null; // Web index or "native:N"; null = auto
     // Preset save mode ("latch"): when armed, the next preset button press
     // saves instead of recalls. Kept in sync with the on-screen "save mode"
     // toggle so they are one shared concept. Set by the renderer.
@@ -70,6 +70,8 @@ class GamepadEngine {
     // priority over the Web Gamepad API, because it keeps updating even when
     // the app window is not focused. See setNativePad().
     this.nativePad = null;
+    this.nativePads = [];
+    this.inputSource = null;
     // Slew-limited (smoothed) speeds so motion ramps up/down instead of
     // jumping — see settings.rampTime and _slew().
     this.smooth = { pan: 0, tilt: 0, zoom: 0 };
@@ -90,16 +92,16 @@ class GamepadEngine {
    * the fix for "camera freezes when I click another app": the Web Gamepad API
    * only updates while the window is focused, but the native reader does not
    * care about focus, so we prefer its data whenever a controller is present.
-   * Pass null when no native controller is connected (falls back to the Web
-   * Gamepad API for non-XInput pads / non-Windows platforms).
+   * Accept all connected native slots. An empty array falls back to the Web
+   * Gamepad API in Auto mode; a pinned native device waits for reconnection.
    */
   setNativePad(pad) {
-    const had = !!this.nativePad;
-    this.nativePad = pad || null;
-    const has = !!this.nativePad;
-    if (had !== has) {
-      if (!has) this._stopMotion(); // controller unplugged: halt any motion
+    const previous = this.nativePads.map((p) => p.index).join(',');
+    this.nativePads = Array.isArray(pad) ? pad : (pad ? [pad] : []);
+    this.nativePad = this.nativePads[0] || null;
+    if (previous !== this.nativePads.map((p) => p.index).join(',')) {
       this._notifyStatus();
+      if (this.callbacks.onDevices) this.callbacks.onDevices(this.listGamepads());
     }
   }
 
@@ -128,6 +130,7 @@ class GamepadEngine {
 
   /** Begin rebind capture; cb receives {kind:'button'|'axis', index} */
   captureNext(cb) {
+    this.halt();
     this.capture = { cb };
     this.captureBaseline = null;
   }
@@ -140,7 +143,7 @@ class GamepadEngine {
   /** All currently-connected controllers: [{index, id}]. */
   listGamepads() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    const out = [];
+    const out = this.nativePads.map((p) => ({ index: `native:${p.index}`, id: p.id, native: true }));
     for (const p of pads) {
       if (p && p.connected) out.push({ index: p.index, id: p.id });
     }
@@ -162,6 +165,11 @@ class GamepadEngine {
   /** Enable/disable "save the next preset" mode (mirrors the on-screen toggle). */
   setSaveMode(on) {
     this.saveMode = !!on;
+  }
+
+  halt() {
+    this._stopMotion();
+    this.driveHoldOff = true;
   }
 
   /**
@@ -237,17 +245,21 @@ class GamepadEngine {
 
   _gamepad() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    // An explicit device choice overrides everything (including the native
-    // reader) so the picker always does what it says. Trade-off: a manually
-    // picked device uses the Web Gamepad API, which only updates while the
-    // window is focused. Leave it on Auto to keep background control.
+    // Native slot numbers and Web Gamepad indices are unrelated. Expose them
+    // as separate choices instead of guessing which physical device matches.
+    if (typeof this.pinnedIndex === 'string' && this.pinnedIndex.startsWith('native:')) {
+      return this.nativePads.find((p) => `native:${p.index}` === this.pinnedIndex) || null;
+    }
+    const webFocused = typeof document === 'undefined' || document.hasFocus();
     if (this.pinnedIndex !== null) {
-      if (pads[this.pinnedIndex] && pads[this.pinnedIndex].connected) return pads[this.pinnedIndex];
-      // chosen device is gone; fall through to auto-select
+      return webFocused && pads[this.pinnedIndex]?.connected ? pads[this.pinnedIndex] : null;
     }
     // Auto: prefer the native (main-process XInput) snapshot — it updates
     // regardless of window focus, so control survives clicking into other apps.
     if (this.nativePad) return this.nativePad;
+    // A blurred Web snapshot can be frozen with a stick held. Stop it rather
+    // than keep sending stale motion; resume from fresh input on focus.
+    if (!webFocused) return null;
     // Fallback: the Web Gamepad API (non-XInput pads / non-Windows platforms).
     if (this.connectedIndex !== null && pads[this.connectedIndex] && pads[this.connectedIndex].connected) {
       return pads[this.connectedIndex];
@@ -333,7 +345,7 @@ class GamepadEngine {
     const dz = this.settings.deadzone ?? 0.15;
     const dzOff = dz * 0.8;
     const mag = Math.hypot(x, y);
-    this.stickLive = mag >= (this.stickLive ? dzOff : dz);
+    this.stickLive = mag > 0 && mag >= (this.stickLive ? dzOff : dz);
     if (!this.stickLive) return { x: 0, y: 0 };
     const AXIAL = 0.18; // tan(~10°): the cone that maps onto the axis
     const damp = (minor, major) => {
@@ -423,8 +435,16 @@ class GamepadEngine {
 
   _poll() {
     const pad = this._gamepad();
+    const source = pad ? `${pad.native ? 'native' : 'web'}:${pad.index}` : null;
+    if (source !== this.inputSource) {
+      this._stopMotion();
+      this.prevButtons = [];
+      this.inputSource = source;
+      this.lastPollTs = null;
+    }
     if (this.callbacks.onFrame) this.callbacks.onFrame(pad);
-    if (!pad || !this.mapping || !this.settings) return;
+    if (!pad) { this._stopMotion(); return; }
+    if (!this.mapping || !this.settings) return;
 
     // ------------------------ rebind capture mode ------------------------
     if (this.capture) {

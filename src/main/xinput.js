@@ -69,6 +69,7 @@ class XInputReader {
     this._getState = null;
     this._lastIndex = null; // slot that was connected on the previous read
     this._scanTick = 0; // countdown to the next full scan for new controllers
+    this._connectedSlots = new Set();
     this._init();
   }
 
@@ -171,6 +172,24 @@ class XInputReader {
       buttons,
       native: true,
     };
+  }
+
+  /** All connected controllers, with absent-slot probing rate-limited. */
+  readAll() {
+    if (!this.available) return [];
+    const scan = this._scanTick-- <= 0;
+    if (scan) this._scanTick = 30;
+    const pads = [];
+    for (let index = 0; index < MAX_USERS; index++) {
+      // Poll connected devices every frame, absent slots only twice a second.
+      if (!scan && !this._connectedSlots.has(index)) continue;
+      const pad = this._readUser(index);
+      if (pad) {
+        this._connectedSlots.add(index);
+        pads.push(pad);
+      } else this._connectedSlots.delete(index);
+    }
+    return pads;
   }
 
   /** The active connected controller, or null if none/unavailable. */
