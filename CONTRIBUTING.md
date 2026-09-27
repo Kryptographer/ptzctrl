@@ -39,6 +39,19 @@ npm test      # headless test suite — no Electron, no camera needed
 All must pass before a pull request can be merged; CI runs them on Linux,
 macOS and Windows.
 
+## App logo and icons
+
+The logo is a geometric **P** with a lens cutout. Its charcoal, mint, and
+off-white colors come from the dark theme in `src/renderer/styles.css`.
+`build/icon.svg` is the source artwork. Export it as a 1024 x 1024 PNG with
+transparent corners to `build/icon.png`, then copy those same bytes to
+`src/assets/icon.png`.
+
+All three platform builds use the build image for the application and desktop
+icon; the window and tray use the runtime copy. The UI tests check their palette,
+dimensions, and consistency. Desktop shortcuts take their icon from the rebuilt
+application, so an already installed copy needs the updated package.
+
 ## Working on the code
 
 [`docs/architecture.md`](docs/architecture.md) explains the layout: main
