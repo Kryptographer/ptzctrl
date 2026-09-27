@@ -27,13 +27,14 @@ npm test      # headless test suite — no Electron, no camera needed
 `npm test` runs three plain Node scripts:
 
 - `test/run-control-tests.js` — the control path: VISCA command pacing and
-  coalescing, stop repeats, and the post-preset drive hold-off.
+  coalescing, stop repeats, post-preset drive hold-off, zero deadzone, and
+  stopping motion during rebinding.
 - `test/run-tests.js` — the tracker math against the OpenCV reference, the
   tracking stability layer under closed-loop simulation, and an end-to-end run
   of the real bundled model.
-
 - `test/run-ui-tests.js` — keyboard and pointer release behavior, plus cancelled
-  and superseded live-stream startup.
+  and superseded live-stream startup, camera/controller selection, STOP ALL,
+  saved theme startup, isolated config recovery, and save failure/retry.
 
 All must pass before a pull request can be merged; CI runs them on Linux,
 macOS and Windows.

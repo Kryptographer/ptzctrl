@@ -36,7 +36,7 @@ RTSP ──► bundled ffmpeg ──► MJPEG relay ──► <img> ──► Vi
 | `drivekeeper.js` | Re-sends the current drive on lossy UDP and repeats stops. |
 | `discovery.js` | ONVIF WS-Discovery plus VISCA probes on UDP 1259 / UDP 52381 / TCP 5678. |
 | `stream.js` | ffmpeg RTSP → MJPEG relay, stream probing and auto-find. |
-| `store.js` | JSON config store (cameras, mapping, settings) in the Electron userData dir. |
+| `store.js` | Validated JSON config in the Electron userData dir, atomic writes, and visible recovery with backups of invalid data. |
 | `xinput.js` | Native controller reads via `koffi` + XInput on Windows, pushed to the renderer as standard-mapping pad snapshots. |
 
 **Command pacing matters.** A VISCA camera buffers only two commands, so
@@ -49,6 +49,7 @@ reordered.
 | File | Responsibility |
 | --- | --- |
 | `renderer.js` | UI: tabs, camera list, live view, Multiview, mapping and settings. |
+| `theme.js` | Applies the saved theme from the preload bridge before styles and first paint. |
 | `gamepad.js` | The input engine: deadzone/curve shaping, smoothing, hysteresis, preset tap/hold, and quantized VISCA speed commands sent only on state changes. |
 | `feeds.js`, `mjpeg.js` | MJPEG relay client and incremental multipart parser, shared by Live view and Multiview. |
 | `vittrack.js` | The neural tracker — a faithful JS port of OpenCV's VitTrack pre/post-processing on onnxruntime-web's WASM backend. DOM-free, so it is testable headless. |
@@ -64,15 +65,20 @@ npm test
 
 - `test/run-control-tests.js` — the control path: VISCA command pacing and
   coalescing, drive-keeper stop repeats, and the controller's post-preset drive
-  hold-off (the "preset bounce" fix).
+  hold-off (the "preset bounce" fix), zero-deadzone input, and rebinding stops.
 - `test/run-tests.js` — the tracker math against the OpenCV reference, the
   stability layer through closed-loop simulations (still subject → zero drive,
   glitch rejection, walk-off, slow drift, aggressive-settings convergence), and
   an end-to-end run of the real bundled model against a synthetic moving,
   scaling subject.
+- `test/run-ui-tests.js` — keyboard/pointer release, cancelled stream startup,
+  camera handoff, native/Web controller selection, STOP ALL, theme startup,
+  isolated configuration recovery, failed writes, and queued settings/retry.
 
-Both are plain Node scripts with no test framework and no Electron — they run
-anywhere Node runs, which is what CI uses.
+These are plain Node scripts (the UI tests use Node's built-in test runner)
+with no Electron or physical cameras required. Configuration tests use
+temporary directories, and control tests record commands instead of opening
+camera connections.
 
 ## Building
 

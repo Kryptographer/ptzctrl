@@ -202,6 +202,22 @@ function testEngine(settings = {}) {
 async function driveHoldOff() {
   console.log('controller drive hold-off after an absolute move:');
 
+  await ok('rebinding stops a held drive and requires neutral before resuming', () => {
+    const { engine, pad, drives } = testEngine();
+    pad.axes[0] = 1;
+    engine._poll();
+    engine.captureNext(() => {});
+    assert.deepStrictEqual(drives.at(-1), [0, 0], 'capture must stop the latched drive');
+    engine.cancelCapture();
+    engine._poll();
+    assert.deepStrictEqual(drives.at(-1), [0, 0], 'cancelling must not restart a held stick');
+    pad.axes[0] = 0;
+    engine._poll();
+    pad.axes[0] = 1;
+    engine._poll();
+    assert.deepStrictEqual(drives.at(-1), [24, 0]);
+  });
+
   await ok('a deflected stick drives the camera normally', () => {
     const { engine, pad, drives } = testEngine();
     pad.axes[0] = 1; // left stick hard right
@@ -284,6 +300,19 @@ async function driveHoldOff() {
 // ----------------------------------------------- stick shaping & symmetry
 
 async function stickShaping() {
+  await ok('zero deadzone keeps neutral and released stick values finite', () => {
+    const { engine, pad, drives } = testEngine({ deadzone: 0 });
+    assert.deepStrictEqual(engine._shapeVector(0, 0), { x: 0, y: 0 });
+    engine._poll();
+    assert.strictEqual(drives.length, 0, 'neutral must not emit NaN drive commands');
+    pad.axes[0] = 1;
+    engine._poll();
+    pad.axes[0] = 0;
+    engine._poll();
+    assert.deepStrictEqual(drives.at(-1), [0, 0]);
+    assert(drives.every(pair => pair.every(Number.isFinite)));
+  });
+
   console.log('stick shaping (left/right symmetry, diagonals, reversals):');
 
   await ok('left and right produce mirror-image speeds across the whole range', () => {

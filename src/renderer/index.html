@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' blob: data:; connect-src 'self' http://127.0.0.1:*" />
   <title>PTZ CTRL</title>
+  <script src="theme.js"></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -19,7 +20,7 @@
     </div>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Sections">
+  <nav id="sectionTabs" class="tabs" role="tablist" aria-label="Sections" inert>
     <button class="tab" id="tabbtn-cameras" role="tab" aria-selected="true"
             aria-controls="tab-cameras" data-tab="cameras">Cameras</button>
     <button class="tab" id="tabbtn-grid" role="tab" aria-selected="false" tabindex="-1"
@@ -30,7 +31,12 @@
             aria-controls="tab-settings" data-tab="settings">Settings</button>
   </nav>
 
-  <main>
+  <details id="configRecovery" class="config-recovery" hidden>
+    <summary>Some saved settings were recovered</summary>
+    <p id="configRecoveryText"></p>
+  </details>
+
+  <main id="workspace" aria-busy="true" inert>
     <!-- ============================ CAMERAS ============================ -->
     <section id="tab-cameras" class="tabpane active" role="tabpanel"
              aria-labelledby="tabbtn-cameras" tabindex="0">
@@ -133,11 +139,12 @@ Press Start to watch the active camera.</div>
               Settings → AI subject tracking.</p></details>
           </section>
 
-          <section class="card" aria-labelledby="h-onscreen">
+          <section id="onScreenControls" class="card" aria-labelledby="h-onscreen">
             <div class="card-head">
               <h2 id="h-onscreen">On-screen control</h2>
               <span class="hint">Hold a button or Space / Enter to move.</span>
             </div>
+            <p id="controlAvailability" class="hint control-availability" role="status"></p>
             <div class="osc">
               <div class="osc-pad" role="group" aria-label="Pan and tilt">
                 <button class="osc-btn" data-pan="-1" data-tilt="1" aria-label="Pan left and tilt up"><span aria-hidden="true">↖</span></button>
@@ -238,58 +245,84 @@ Press Start to watch the active camera.</div>
     <section id="tab-settings" class="tabpane" role="tabpanel"
              aria-labelledby="tabbtn-settings" tabindex="0">
       <div class="workspace-heading"><div><span class="eyebrow">PTZ CTRL / 04 — Workspace</span><h1>Fine-tune your setup.</h1></div><p>Dial in movement, tracking and presets.</p></div>
+      <div class="settings-feedback">
+        <p class="hint">Changes apply immediately. Saved automatically on this computer.</p>
+        <span id="settingsSaveStatus" class="save-status" role="status">All changes saved.</span>
+        <button id="retrySettingsBtn" class="btn btn-sm" hidden>Retry saving</button>
+      </div>
       <section class="card settings-card" aria-labelledby="h-preferences">
         <div class="card-head"><h2 id="h-preferences">Appearance &amp; startup</h2></div>
         <div class="form-grid">
-          <label>Theme
-            <select id="theme"><option value="dark">Dark</option><option value="light">Light</option></select>
-          </label>
-          <label>Default camera for control
-            <select id="defaultCameraId" aria-describedby="defaultCameraNote"></select>
-          </label>
-          <p class="field-note" id="defaultCameraNote">Selected when the app starts. You can switch cameras at any time;
-            clicking outside the app keeps your active camera selected. Video-only cameras cannot be a control default.</p>
+          <div class="setting-field">
+            <label>Theme
+              <select id="theme" aria-describedby="themeNote"><option value="dark">Dark</option><option value="light">Light</option></select>
+            </label>
+            <p class="field-note" id="themeNote">Dark is the default. Your choice is kept when you reopen the app, regardless of the system theme.</p>
+          </div>
+          <div class="setting-field">
+            <label>Default camera for control
+              <select id="defaultCameraId" aria-describedby="defaultCameraNote"></select>
+            </label>
+            <p class="field-note" id="defaultCameraNote">Selected at startup, not when you change this setting. You can switch cameras at any time.
+              Video-only cameras cannot be a control default.</p>
+          </div>
         </div>
       </section>
       <section class="card settings-card" aria-labelledby="h-controlfeel">
         <div class="card-head"><h2 id="h-controlfeel">Control feel</h2></div>
-        <div class="form-grid">
-          <label>Stick deadzone <span id="deadzoneVal" class="val"></span>
-            <input type="range" id="deadzone" min="0" max="0.5" step="0.01" />
-          </label>
-          <label>Speed multiplier <span id="speedMultVal" class="val"></span>
-            <input type="range" id="speedMultiplier" min="0.05" max="1" step="0.05" />
-          </label>
-          <label>Response curve (higher = finer control near center) <span id="curveVal" class="val"></span>
-            <input type="range" id="speedCurve" min="1" max="4" step="0.1" />
-          </label>
-          <label>Pan sensitivity <span id="panSensVal" class="val"></span>
-            <input type="range" id="panSensitivity" min="0.1" max="1" step="0.05" />
-          </label>
-          <label>Tilt sensitivity <span id="tiltSensVal" class="val"></span>
-            <input type="range" id="tiltSensitivity" min="0.1" max="1" step="0.05" />
-          </label>
-          <label>Zoom sensitivity <span id="zoomSensVal" class="val"></span>
-            <input type="range" id="zoomSensitivity" min="0.1" max="1" step="0.05" />
-          </label>
-          <label>Motion smoothing — ramp-up time (0 = instant) <span id="rampTimeVal" class="val"></span>
-            <input type="range" id="rampTime" min="0" max="1.5" step="0.05" />
-          </label>
-          <label>Precision mode speed (while holding the precision button) <span id="precisionScaleVal" class="val"></span>
-            <input type="range" id="precisionScale" min="0.05" max="0.5" step="0.05" />
-          </label>
-          <label>Max pan speed <span id="maxPanVal" class="val"></span>
-            <input type="range" id="maxPanSpeed" min="1" max="24" step="1" />
-          </label>
-          <label>Max tilt speed <span id="maxTiltVal" class="val"></span>
-            <input type="range" id="maxTiltSpeed" min="1" max="20" step="1" />
-          </label>
-          <label>Max zoom speed <span id="maxZoomVal" class="val"></span>
-            <input type="range" id="maxZoomSpeed" min="1" max="7" step="1" />
-          </label>
-          <label class="check"><input type="checkbox" id="invertPan" /> Invert pan</label>
-          <label class="check"><input type="checkbox" id="invertTilt" /> Invert tilt</label>
-        </div>
+        <fieldset class="settings-group">
+          <legend>Stick response</legend>
+          <div class="form-grid">
+            <label>Stick deadzone <span id="deadzoneVal" class="val"></span>
+              <input type="range" id="deadzone" min="0" max="0.5" step="0.01" aria-describedby="deadzoneNote" />
+            </label>
+            <label>Response curve (higher = finer control near center) <span id="curveVal" class="val"></span>
+              <input type="range" id="speedCurve" min="1" max="4" step="0.1" />
+            </label>
+            <label>Motion smoothing — ramp-up time (0 = instant) <span id="rampTimeVal" class="val"></span>
+              <input type="range" id="rampTime" min="0" max="1.5" step="0.05" />
+            </label>
+            <p class="field-note" id="deadzoneNote">Increase the deadzone if a centered stick drifts. At 0%, even small stick movements are used.</p>
+            <label class="check"><input type="checkbox" id="invertPan" /> Invert pan</label>
+            <label class="check"><input type="checkbox" id="invertTilt" /> Invert tilt</label>
+          </div>
+        </fieldset>
+        <fieldset class="settings-group">
+          <legend>Speed &amp; sensitivity</legend>
+          <div class="form-grid">
+            <label>Speed multiplier <span id="speedMultVal" class="val"></span>
+              <input type="range" id="speedMultiplier" min="0.05" max="1" step="0.05" />
+            </label>
+            <label>Precision mode speed (while holding the precision button) <span id="precisionScaleVal" class="val"></span>
+              <input type="range" id="precisionScale" min="0.05" max="0.5" step="0.05" />
+            </label>
+          </div>
+          <div class="form-grid setting-row">
+            <label>Pan sensitivity <span id="panSensVal" class="val"></span>
+              <input type="range" id="panSensitivity" min="0.1" max="1" step="0.05" />
+            </label>
+            <label>Tilt sensitivity <span id="tiltSensVal" class="val"></span>
+              <input type="range" id="tiltSensitivity" min="0.1" max="1" step="0.05" />
+            </label>
+            <label>Zoom sensitivity <span id="zoomSensVal" class="val"></span>
+              <input type="range" id="zoomSensitivity" min="0.1" max="1" step="0.05" />
+            </label>
+          </div>
+        </fieldset>
+        <fieldset class="settings-group">
+          <legend>Camera speed limits</legend>
+          <div class="form-grid">
+            <label>Max pan speed <span id="maxPanVal" class="val"></span>
+              <input type="range" id="maxPanSpeed" min="1" max="24" step="1" />
+            </label>
+            <label>Max tilt speed <span id="maxTiltVal" class="val"></span>
+              <input type="range" id="maxTiltSpeed" min="1" max="20" step="1" />
+            </label>
+            <label>Max zoom speed <span id="maxZoomVal" class="val"></span>
+              <input type="range" id="maxZoomSpeed" min="1" max="7" step="1" />
+            </label>
+          </div>
+        </fieldset>
       </section>
 
       <section class="card settings-card" aria-labelledby="h-tracking">
@@ -326,8 +359,9 @@ Press Start to watch the active camera.</div>
         <div class="form-grid">
           <label class="check"><input type="checkbox" id="presetHoldToSave" /> Hold a preset button to save it (tap = recall)</label>
           <label>Hold-to-save time <span id="presetHoldVal" class="val"></span>
-            <input type="range" id="presetHoldMs" min="400" max="2000" step="100" />
+            <input type="range" id="presetHoldMs" min="400" max="2000" step="100" aria-describedby="presetHoldNote" />
           </label>
+          <p class="field-note" id="presetHoldNote">Used only when hold-to-save is enabled. Preset shift and save mode remain available.</p>
         </div>
       </section>
 
@@ -346,7 +380,7 @@ Press Start to watch the active camera.</div>
 
   <footer class="statusbar">
     <span id="statusMsg" role="status" aria-live="polite">
-      <span class="status-kind"></span><span class="status-text"></span>
+      <span class="status-kind"></span><span class="status-text">Loading saved settings...</span>
     </span>
     <span class="shortcut-hint"><kbd>Esc</kbd> <kbd>Esc</kbd> stops all cameras</span>
   </footer>

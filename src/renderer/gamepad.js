@@ -130,6 +130,7 @@ class GamepadEngine {
 
   /** Begin rebind capture; cb receives {kind:'button'|'axis', index} */
   captureNext(cb) {
+    this.halt();
     this.capture = { cb };
     this.captureBaseline = null;
   }
@@ -164,6 +165,11 @@ class GamepadEngine {
   /** Enable/disable "save the next preset" mode (mirrors the on-screen toggle). */
   setSaveMode(on) {
     this.saveMode = !!on;
+  }
+
+  halt() {
+    this._stopMotion();
+    this.driveHoldOff = true;
   }
 
   /**
@@ -339,7 +345,7 @@ class GamepadEngine {
     const dz = this.settings.deadzone ?? 0.15;
     const dzOff = dz * 0.8;
     const mag = Math.hypot(x, y);
-    this.stickLive = mag >= (this.stickLive ? dzOff : dz);
+    this.stickLive = mag > 0 && mag >= (this.stickLive ? dzOff : dz);
     if (!this.stickLive) return { x: 0, y: 0 };
     const AXIAL = 0.18; // tan(~10°): the cone that maps onto the axis
     const damp = (minor, major) => {

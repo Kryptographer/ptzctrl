@@ -32,6 +32,13 @@ const setError = (msg) => setStatus(msg, 'error');
 const setOk = (msg) => setStatus(msg, 'ok');
 const setBusy = (msg) => setStatus(msg, 'busy');
 
+function configAction(message, action) {
+  return async (...args) => {
+    try { await action(...args); }
+    catch (err) { setError(`${message}: ${err.message}`); }
+  };
+}
+
 /**
  * Turn a button into a two-step confirmation for an irreversible action.
  * Nothing happens on the first click: the button is replaced in place by a
@@ -77,10 +84,14 @@ function confirmInline(btn, question, confirmLabel, onConfirm) {
     if (timer) clearTimeout(timer);
     timer = null;
     document.removeEventListener('keydown', onKey, true);
-    await onConfirm();
-    // Put the original button back unless the action re-rendered the list it
-    // lived in (then `wrap` is already gone with the rest of that subtree).
-    if (wrap.isConnected) revert();
+    yes.disabled = no.disabled = true;
+    try {
+      await onConfirm();
+    } catch (err) {
+      setError(`Could not save changes: ${err.message}`);
+    } finally {
+      if (wrap.isConnected) revert();
+    }
   });
 
   wrap.append(q, yes, no);
@@ -318,7 +329,11 @@ async function uvcPresetSave(cam, n) {
     return false;
   }
   const presets = { ...(cam.presets || {}), [n]: pos };
-  await window.ptz.updateCamera(cam.id, { presets });
+  try { await window.ptz.updateCamera(cam.id, { presets }); }
+  catch (err) {
+    setError(`Could not save preset: ${err.message}`);
+    return false;
+  }
   cam.presets = presets;
   return true;
 }
@@ -506,11 +521,17 @@ async function ctlPresetRecall(cam, n) {
   return true;
 }
 
-function ctlStopAll() {
+function haltLocalControl() {
   releaseOnScreenControls();
+  engine.halt();
+  setSaveMode(false);
   tracker.cancel('Tracking stopped.');
   uvcStopAll();
   manualDrive.pan = manualDrive.tilt = manualDrive.zoom = manualDrive.focus = 0;
+}
+
+function ctlStopAll() {
+  haltLocalControl();
   window.ptz.stopAll();
 }
 
@@ -636,6 +657,10 @@ const HEALTH_TEXT = { ok: 'reachable', fail: 'not responding', testing: 'testing
 
 function renderCameras() {
   const list = $('cameraList');
+  const focused = document.activeElement;
+  const focusedCamera = focused?.closest('.camera-item[role="option"]')?.dataset.camId;
+  const focusedAction = focused?.dataset.cameraAction;
+  const focusedLabel = focused?.getAttribute('aria-label');
   list.innerHTML = '';
   if (config.cameras.length === 0) {
     list.innerHTML =
@@ -667,6 +692,7 @@ function renderCameras() {
     const name = document.createElement('div');
     name.className = 'cam-name';
     const nameInput = document.createElement('input');
+    nameInput.dataset.cameraAction = 'rename';
     nameInput.value = cam.name;
     nameInput.title = 'Rename camera';
     nameInput.setAttribute('aria-label', `Name of camera ${i + 1}`);
@@ -674,10 +700,10 @@ function renderCameras() {
     // Typing (and arrowing through text) inside the field must not steer the
     // list underneath it.
     nameInput.addEventListener('keydown', (e) => e.stopPropagation());
-    nameInput.addEventListener('change', async () => {
+    nameInput.addEventListener('change', configAction('Could not rename camera', async () => {
       await window.ptz.updateCamera(cam.id, { name: nameInput.value.trim() || cam.ip || 'Camera' });
       await refreshConfig();
-    });
+    }));
     name.appendChild(nameInput);
 
     const isIp = cam.type === 'ip';
@@ -701,6 +727,7 @@ function renderCameras() {
     dotText.textContent = `Connection: ${HEALTH_TEXT[health] || 'not tested yet'}`;
 
     const expandBtn = document.createElement('button');
+    expandBtn.dataset.cameraAction = 'settings';
     expandBtn.className = 'cam-expand';
     expandBtn.title = expanded ? 'Hide settings' : 'Camera settings';
     expandBtn.setAttribute('aria-label', `Settings for ${cam.name}`);
@@ -713,9 +740,10 @@ function renderCameras() {
     });
 
     const controlBtn = document.createElement('button');
+    controlBtn.dataset.cameraAction = 'select';
     controlBtn.className = 'btn btn-sm';
-    controlBtn.textContent = isActive ? 'Controlling' : 'Control';
-    controlBtn.setAttribute('aria-label', `Control ${cam.name}`);
+    controlBtn.textContent = isIp ? (isActive ? 'Viewing' : 'View') : (isActive ? 'Controlling' : 'Control');
+    controlBtn.setAttribute('aria-label', `${isIp ? 'View' : 'Control'} ${cam.name}`);
     controlBtn.setAttribute('aria-pressed', String(isActive));
     controlBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -752,12 +780,12 @@ function renderCameras() {
           if (cam.protocol === val) opt.selected = true;
           protoSel.appendChild(opt);
         }
-        protoSel.addEventListener('change', async () => {
+        protoSel.addEventListener('change', configAction('Could not save camera protocol', async () => {
           const defaults = { udp: 1259, 'udp-sony': 52381, tcp: 5678 };
           await window.ptz.updateCamera(cam.id, { protocol: protoSel.value, port: defaults[protoSel.value] });
           camHealth.delete(cam.id);
           await refreshConfig();
-        });
+        }));
         rowA.appendChild(protoSel);
       }
 
@@ -839,11 +867,20 @@ function renderCameras() {
   const pill = $('activeCamPill');
   const cam = activeCamera();
   if (cam) {
-    pill.textContent = `Active: ${cam.name}`;
+    pill.textContent = `${isVideoOnly(cam) ? 'Viewing' : 'Active'}: ${cam.name}`;
+    pill.title = cam.name;
     pill.className = 'pill pill-on';
   } else {
     pill.textContent = 'No active camera';
+    pill.title = '';
     pill.className = 'pill pill-off';
+  }
+  if (focusedCamera) {
+    const row = [...list.children].find((item) => item.dataset.camId === focusedCamera) ||
+      list.querySelector('[aria-selected="true"]');
+    const control = row && [...row.querySelectorAll('input, button, select')].find((el) =>
+      focusedAction ? el.dataset.cameraAction === focusedAction : focusedLabel && el.getAttribute('aria-label') === focusedLabel);
+    (control || row)?.focus({ preventScroll: true });
   }
 }
 
@@ -890,7 +927,7 @@ function stepCamera(dir) {
   selectCamera(cams[next].id);
 }
 
-$('addCameraForm').addEventListener('submit', async (e) => {
+$('addCameraForm').addEventListener('submit', configAction('Could not add camera', async (e) => {
   e.preventDefault();
   const ip = $('addIp').value.trim();
   if (!ip) return;
@@ -912,14 +949,14 @@ $('addCameraForm').addEventListener('submit', async (e) => {
   $('addPort').value = '1259';
   await refreshConfig();
   setOk(`Added camera ${ip} — it's now in My cameras.`);
-});
+}));
 
 $('addProtocol').addEventListener('change', () => {
   const defaults = { udp: 1259, 'udp-sony': 52381, tcp: 5678 };
   $('addPort').value = String(defaults[$('addProtocol').value]);
 });
 
-$('addStreamForm').addEventListener('submit', async (e) => {
+$('addStreamForm').addEventListener('submit', configAction('Could not add video source', async (e) => {
   e.preventDefault();
   const url = $('addStreamUrl').value.trim();
   if (!url) return;
@@ -941,7 +978,7 @@ $('addStreamForm').addEventListener('submit', async (e) => {
   $('addStreamForm').reset();
   await refreshConfig();
   setOk(`Added video-only camera ${host || url} — it's now in My cameras.`);
-});
+}));
 
 // ---------------------------------------------------------------------------
 // Live view
@@ -969,11 +1006,28 @@ function updateLiveCard() {
   $('liveToggleBtn').disabled = !cam;
   $('findStreamBtn').disabled = !cam || isLocal || !cam.ip;
   $('trackBtn').disabled = !cam || isVideoOnly(cam);
+  updateControlAvailability();
   if (liveOn && (!cam || cam.id !== liveCamId)) {
     // Active camera changed while watching: follow it.
     if (cam) startLive();
     else stopLive();
   }
+}
+
+function updateControlAvailability() {
+  const cam = activeCamera();
+  const available = !!cam && !isVideoOnly(cam);
+  for (const control of document.querySelectorAll('#onScreenControls button, #onScreenControls input')) {
+    control.disabled = !available;
+  }
+  for (const id of ['oscFocusFar', 'oscFocusNear']) {
+    $(id).disabled = !available || cam.type === 'local';
+  }
+  const hint = $('controlAvailability');
+  hint.textContent = !cam ? 'Select or add a camera to use the PTZ controls.'
+    : isVideoOnly(cam) ? 'This source is video-only. Select a PTZ camera to use movement and presets.'
+      : cam.type === 'local' ? 'USB PTZ requires live video and a device with UVC pan, tilt or zoom support.' : '';
+  hint.hidden = !hint.textContent;
 }
 
 let liveFeed = null;
@@ -1088,7 +1142,7 @@ $('trackBtn').addEventListener('click', async () => {
   tracker.arm();
 });
 
-$('liveUrlInput').addEventListener('change', async () => {
+$('liveUrlInput').addEventListener('change', configAction('Could not save stream URL', async () => {
   const cam = activeCamera();
   if (!cam) return;
   const url = $('liveUrlInput').value.trim();
@@ -1096,7 +1150,7 @@ $('liveUrlInput').addEventListener('change', async () => {
   await refreshConfig();
   if (liveOn) startLive(); // reconnect with the new URL
   setOk(`Stream URL updated for ${cam.name}`);
-});
+}));
 
 window.ptz.onFindProgress((p) => {
   liveOverlay(`Probing common stream paths… ${p.tried}/${p.total}`);
@@ -1162,8 +1216,8 @@ function buildGridTiles() {
     tile.type = 'button';
     tile.className = 'tile';
     tile.setAttribute('aria-pressed', String(cam.id === config.activeCameraId));
-    tile.setAttribute('aria-label', `Control ${cam.name} (camera ${i + 1})`);
-    tile.title = `Click to control ${cam.name}`;
+    tile.setAttribute('aria-label', `${isVideoOnly(cam) ? 'View' : 'Control'} ${cam.name} (camera ${i + 1})`);
+    tile.title = `Click to ${isVideoOnly(cam) ? 'view' : 'control'} ${cam.name}`;
 
     let img;
     if (isLocal) {
@@ -1190,7 +1244,7 @@ function buildGridTiles() {
     // The controlled tile says so in words as well as in its green frame.
     const ctl = document.createElement('span');
     ctl.className = 'tile-ctl';
-    ctl.textContent = 'CONTROLLING';
+    ctl.textContent = isVideoOnly(cam) ? 'VIEWING' : 'CONTROLLING';
     const live = document.createElement('span');
     live.className = 'tile-live';
     live.textContent = 'LIVE';
@@ -1387,15 +1441,8 @@ function initOnScreenControls() {
   });
 
   // Speed slider mirrors the global speed multiplier.
-  $('oscSpeed').addEventListener('input', async () => {
-    const v = Number($('oscSpeed').value);
-    config.settings.speedMultiplier = v;
-    engine.settings = config.settings;
-    $('speedMultiplier').value = String(v);
-    $('speedMultVal').textContent = `${Math.round(v * 100)}%`;
-    updateSpeedPill();
-    await window.ptz.setSettings({ speedMultiplier: v });
-  });
+  $('oscSpeed').addEventListener('input', () => updateSettings({ speedMultiplier: Number($('oscSpeed').value) }));
+  $('oscSpeed').addEventListener('change', savePendingSettings);
 
   // Presets 1–8 with recall / save-mode toggle
   const wrap = $('oscPresets');
@@ -1458,7 +1505,7 @@ function renderDiscovered() {
     addBtn.textContent = known ? 'Already added' : 'Add';
     addBtn.setAttribute('aria-label', `${known ? 'Already added: ' : 'Add '}${dev.name || dev.ip}`);
     addBtn.disabled = known;
-    addBtn.addEventListener('click', async () => {
+    addBtn.addEventListener('click', configAction('Could not add discovered camera', async () => {
       if (isIpDev) {
         await window.ptz.addCamera({
           type: 'ip',
@@ -1477,7 +1524,7 @@ function renderDiscovered() {
       await refreshConfig();
       renderDiscovered();
       setOk(`Added ${dev.name || dev.ip} — it's now in My cameras.`);
-    });
+    }));
     actions.appendChild(addBtn);
     const row = document.createElement('div');
     row.className = 'cam-row';
@@ -1578,7 +1625,7 @@ async function refreshLocalDevices() {
     addBtn.setAttribute('aria-label',
       `${known ? 'Already added: ' : 'Add '}${dev.label || 'video device'}`);
     addBtn.disabled = known;
-    addBtn.addEventListener('click', async () => {
+    addBtn.addEventListener('click', configAction('Could not add local camera', async () => {
       await window.ptz.addCamera({
         type: 'local',
         name: dev.label || 'Local camera',
@@ -1587,7 +1634,7 @@ async function refreshLocalDevices() {
       await refreshConfig();
       await refreshLocalDevices();
       setOk(`Added ${dev.label || 'local camera'} — it's now in My cameras.`);
-    });
+    }));
     actions.appendChild(addBtn);
     const row = document.createElement('div');
     row.className = 'cam-row';
@@ -1671,9 +1718,20 @@ for (const [, actions] of BUTTON_GROUPS) {
  * re-pointing the engine), every rebind after that looks bound in the UI and
  * saves to disk but the controller silently keeps the old bindings.
  */
-async function persistMapping() {
-  config.mapping = await window.ptz.setMapping(config.mapping);
-  engine.mapping = config.mapping;
+let mappingSave = Promise.resolve();
+let mappingRevision = 0;
+
+function persistMapping(write) {
+  const save = async () => {
+    config.mapping = await write(structuredClone(config.mapping));
+    engine.mapping = config.mapping;
+    mappingRevision++;
+  };
+  // Each edit starts from the last committed mapping, including after a
+  // failed edit. Rapid clears/rebinds must not overwrite one another.
+  const pending = mappingSave.then(save, save);
+  mappingSave = pending;
+  return pending;
 }
 
 let listeningRow = null;
@@ -1707,7 +1765,7 @@ function makeMapRow(kind, key, label) {
     row.classList.add('listening');
     binding.textContent = 'press input…';
     setBusy(`Press a ${kind === 'axis' ? 'stick axis' : 'button'} to bind "${label}" (Esc to cancel)`);
-    engine.captureNext(async (input) => {
+    engine.captureNext(configAction('Could not save controller mapping', async (input) => {
       row.classList.remove('listening');
       listeningRow = null;
       if (kind === 'axis' && input.kind !== 'axis') {
@@ -1720,15 +1778,20 @@ function makeMapRow(kind, key, label) {
         renderMapping();
         return;
       }
-      const displaced = gpClaimBinding(config.mapping, kind, key, input.index);
-      await persistMapping();
-      renderMapping();
+      let displaced;
+      try {
+        await persistMapping((mapping) => {
+          displaced = gpClaimBinding(mapping, kind, key, input.index);
+          return window.ptz.setMapping(mapping);
+        });
+      }
+      finally { renderMapping(); }
       const inputName = input.kind === 'axis' ? gpAxisName(input.index) : gpButtonName(input.index);
       const movedNote = displaced.length
         ? ` — moved off ${displaced.map((k) => `"${ACTION_LABELS[k] || k}"`).join(', ')}`
         : '';
       setOk(`Bound "${label}" to ${inputName}${movedNote}`);
-    });
+    }));
   });
 
   const clear = document.createElement('button');
@@ -1736,13 +1799,15 @@ function makeMapRow(kind, key, label) {
   clear.textContent = 'Clear';
   clear.setAttribute('aria-label', `Clear the binding for ${label}`);
   clear.disabled = val == null;
-  clear.addEventListener('click', async () => {
-    if (kind === 'axis') config.mapping.axes[key] = null;
-    else config.mapping.buttons[key] = null;
-    await persistMapping();
+  clear.addEventListener('click', configAction('Could not clear controller binding', async () => {
+    await persistMapping((mapping) => {
+      if (kind === 'axis') mapping.axes[key] = null;
+      else mapping.buttons[key] = null;
+      return window.ptz.setMapping(mapping);
+    });
     renderMapping();
     setStatus(`Cleared the binding for "${label}"`);
-  });
+  }));
 
   row.append(action, binding, rebind, clear);
   return row;
@@ -1770,11 +1835,7 @@ function renderMapping() {
   const resetBtn = $('resetMappingBtn');
   resetBtn.addEventListener('click', () => {
     confirmInline(resetBtn, 'Discard all custom bindings?', 'Reset', async () => {
-      config.mapping = await window.ptz.resetMapping();
-      // Re-point the engine at the new mapping object. Without this the engine
-      // keeps polling the pre-reset object forever: the reset doesn't take, and
-      // every rebind after it edits an object the engine never reads.
-      engine.mapping = config.mapping;
+      await persistMapping(() => window.ptz.resetMapping());
       renderMapping();
       setOk('Mapping reset to Xbox defaults');
     });
@@ -1856,6 +1917,7 @@ function renderSettings() {
   $('invertPan').checked = !!config.settings.invertPan;
   $('invertTilt').checked = !!config.settings.invertTilt;
   $('presetHoldToSave').checked = config.settings.presetHoldToSave !== false;
+  $('presetHoldMs').disabled = !$('presetHoldToSave').checked;
   $('trackInvertPan').checked = !!config.settings.trackInvertPan;
   $('trackInvertTilt').checked = !!config.settings.trackInvertTilt;
   updateSpeedPill();
@@ -1877,39 +1939,81 @@ function renderPreferences() {
   select.value = config.settings.defaultCameraId || '';
 }
 
+let pendingSettings = {};
+let inFlightSettings = null;
+let settingsSaveTimer = null;
+let settingsSaveFailed = false;
+let settingsRevision = 0;
+
+function showSettingsSaveState(message, kind) {
+  $('settingsSaveStatus').textContent = message;
+  $('settingsSaveStatus').dataset.kind = kind;
+  $('retrySettingsBtn').hidden = kind !== 'error';
+}
+
+function updateSettings(patch, immediate = false) {
+  Object.assign(config.settings, patch);
+  Object.assign(pendingSettings, patch);
+  engine.settings = config.settings;
+  renderSettings();
+  showSettingsSaveState('Saving changes...', 'busy');
+  clearTimeout(settingsSaveTimer);
+  if (immediate) return savePendingSettings();
+  settingsSaveTimer = setTimeout(savePendingSettings, 180);
+}
+
+async function savePendingSettings() {
+  clearTimeout(settingsSaveTimer);
+  settingsSaveTimer = null;
+  if (inFlightSettings || Object.keys(pendingSettings).length === 0) return;
+  const patch = pendingSettings;
+  pendingSettings = {};
+  inFlightSettings = patch;
+  showSettingsSaveState('Saving changes...', 'busy');
+  let failed = false;
+  try {
+    const saved = await window.ptz.setSettings(patch);
+    for (const key of Object.keys(patch)) {
+      if (!(key in pendingSettings)) config.settings[key] = saved[key];
+    }
+    settingsRevision++;
+    renderSettings();
+  } catch (err) {
+    failed = true;
+    settingsSaveFailed = true;
+    pendingSettings = { ...patch, ...pendingSettings };
+    showSettingsSaveState('Not saved. Changes are active for this session only.', 'error');
+    setError(`Could not save settings: ${err.message} Use Retry saving in Settings.`);
+  } finally {
+    inFlightSettings = null;
+  }
+  if (failed) return;
+  if (Object.keys(pendingSettings).length) return savePendingSettings();
+  showSettingsSaveState('All changes saved.', 'ok');
+  if (settingsSaveFailed) setOk('Settings saved.');
+  settingsSaveFailed = false;
+}
+
+$('retrySettingsBtn').addEventListener('click', savePendingSettings);
+
 for (const key of ['theme', 'defaultCameraId']) {
-  $(key).addEventListener('change', async () => {
-    const value = $(key).value || null;
-    config.settings[key] = value;
-    if (key === 'theme') document.documentElement.dataset.theme = value;
-    try {
-      await window.ptz.setSettings({ [key]: value });
-      setOk(key === 'theme' ? 'Theme saved.' : 'Default camera saved for next startup.');
-    } catch (err) { setError(`Could not save preference: ${err.message}`); }
-  });
+  $(key).addEventListener('change', () => updateSettings({ [key]: $(key).value || null }, true));
 }
 
 function updateSpeedPill() {
-  $('speedPill').textContent = `Speed ${Math.round(config.settings.speedMultiplier * 100)}%`;
-  $('oscSpeed').value = String(config.settings.speedMultiplier);
+  const speed = config.settings.speedMultiplier;
+  $('speedPill').textContent = `Speed ${pctFmt(speed)}`;
+  $('oscSpeed').value = $('speedMultiplier').value = String(speed);
+  $('oscSpeed').setAttribute('aria-valuetext', pctFmt(speed));
+  setSliderValue('speedMultiplier', 'speedMultVal', pctFmt, speed);
 }
 
-for (const [key, valId, fmt] of SETTING_SLIDERS) {
-  $(key).addEventListener('input', async () => {
-    const v = Number($(key).value);
-    config.settings[key] = v;
-    setSliderValue(key, valId, fmt, v);
-    engine.settings = config.settings;
-    updateSpeedPill();
-    await window.ptz.setSettings({ [key]: v });
-  });
+for (const [key] of SETTING_SLIDERS) {
+  $(key).addEventListener('input', () => updateSettings({ [key]: Number($(key).value) }));
+  $(key).addEventListener('change', savePendingSettings);
 }
 for (const key of SETTING_CHECKS) {
-  $(key).addEventListener('change', async () => {
-    config.settings[key] = $(key).checked;
-    engine.settings = config.settings;
-    await window.ptz.setSettings({ [key]: $(key).checked });
-  });
+  $(key).addEventListener('change', () => updateSettings({ [key]: $(key).checked }, true));
 }
 
 // ---------------------------------------------------------------------------
@@ -1935,7 +2039,7 @@ function renderFrame(pad) {
   if (!pad) {
     stickL.style.left = stickR.style.left = '50%';
     stickL.style.top = stickR.style.top = '50%';
-    $('barLT').style.width = $('barRT').style.width = '0%';
+    $('barLT').style.transform = $('barRT').style.transform = 'scaleX(0)';
     lights.forEach((el) => el.classList.remove('on'));
     return;
   }
@@ -1946,8 +2050,8 @@ function renderFrame(pad) {
   };
   place(stickL, pad.axes[0] || 0, pad.axes[1] || 0);
   place(stickR, pad.axes[2] || 0, pad.axes[3] || 0);
-  $('barLT').style.width = `${Math.round((pad.buttons[6]?.value || 0) * 100)}%`;
-  $('barRT').style.width = `${Math.round((pad.buttons[7]?.value || 0) * 100)}%`;
+  $('barLT').style.transform = `scaleX(${pad.buttons[6]?.value || 0})`;
+  $('barRT').style.transform = `scaleX(${pad.buttons[7]?.value || 0})`;
   for (let i = 0; i < lights.length; i++) {
     lights[i].classList.toggle('on', !!pad.buttons[i]?.pressed);
   }
@@ -2070,12 +2174,7 @@ engine.callbacks = {
       case 'speedDown': {
         const delta = name === 'speedUp' ? 0.05 : -0.05;
         const v = Math.min(1, Math.max(0.05, Math.round((config.settings.speedMultiplier + delta) * 20) / 20));
-        config.settings.speedMultiplier = v;
-        engine.settings = config.settings;
-        $('speedMultiplier').value = String(v);
-        $('speedMultVal').textContent = `${Math.round(v * 100)}%`;
-        updateSpeedPill();
-        window.ptz.setSettings({ speedMultiplier: v });
+        updateSettings({ speedMultiplier: v }, true);
         setStatus(`Speed ${Math.round(v * 100)}%`);
         break;
       }
@@ -2085,7 +2184,7 @@ engine.callbacks = {
 
 $('stopAllBtn').addEventListener('click', () => {
   ctlStopAll();
-  setOk('STOP sent to every camera — all motion halted.');
+  setOk('STOP sent to every camera. Release sticks and triggers before driving again.');
 });
 
 // ---------------------------------------------------------------------------
@@ -2094,17 +2193,29 @@ $('stopAllBtn').addEventListener('click', () => {
 
 async function refreshConfig() {
   const revision = cameraSelectionRevision;
+  const savedSettingsRevision = settingsRevision;
+  const savedMappingRevision = mappingRevision;
   const next = await window.ptz.getConfig();
   if (revision !== cameraSelectionRevision) next.activeCameraId = config.activeCameraId;
+  if (savedSettingsRevision !== settingsRevision) next.settings = config.settings;
+  if (savedMappingRevision !== mappingRevision) next.mapping = config.mapping;
   const prev = activeCamera();
   if (prev && prev.id !== next.activeCameraId) {
     releaseOnScreenControls();
     handoffDrive(prev);
   }
+  // Camera edits can refresh config while an appearance/slider save is still
+  // in flight or awaiting retry. Do not replace those newer local choices.
+  next.settings = { ...next.settings, ...inFlightSettings, ...pendingSettings };
+  if (next.settings.defaultCameraId &&
+      !next.cameras.some((cam) => cam.id === next.settings.defaultCameraId && !isVideoOnly(cam))) {
+    next.settings.defaultCameraId = null;
+    pendingSettings.defaultCameraId = null;
+  }
   config = next;
   engine.mapping = config.mapping;
   engine.settings = config.settings;
-  renderPreferences();
+  renderSettings();
   renderCameras();
   autoTestCameras();
   updateLiveCard();
@@ -2116,13 +2227,26 @@ async function refreshConfig() {
   renderMapping();
   renderSettings();
   initOnScreenControls();
+  updateControlAvailability();
   // Feed the engine controller snapshots read in the main process (XInput).
   // These keep coming even when the app window is unfocused, so the controller
   // keeps driving cameras after you click into another app. Falls back to the
   // Web Gamepad API automatically when no native controller is present.
   window.ptz.onNativeGamepad((pad) => engine.setNativePad(pad));
+  window.ptz.onStopAll(() => {
+    haltLocalControl();
+    setOk('STOP sent to every camera. Release sticks and triggers before driving again.');
+  });
   engine.start();
   renderGamepadList(engine.listGamepads());
   refreshLocalDevices().catch(() => {});
-  setStatus('Ready. Connect an Xbox controller and press any button to activate it — or use the on-screen controls.');
-})();
+  $('workspace').inert = $('sectionTabs').inert = false;
+  $('workspace').setAttribute('aria-busy', 'false');
+  const warnings = config.warnings || [];
+  $('configRecovery').hidden = warnings.length === 0;
+  $('configRecoveryText').textContent = warnings.join(' ');
+  if (warnings.length) setError('Some saved settings were recovered. Open the recovery notice for details.');
+  else setStatus('Ready. Connect an Xbox controller and press any button to activate it — or use the on-screen controls.');
+})().catch((err) => {
+  setError(`Could not load the app: ${err.message} Restart PTZ CTRL to try again.`);
+});

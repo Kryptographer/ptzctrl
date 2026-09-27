@@ -19,6 +19,9 @@ active. The **Controlling** button and header show where commands go. Renaming
 or opening a camera's settings does not change the active camera. Switching
 stops the previous manual drive and sends held controller input to the new
 camera immediately. Clicking outside the app does not clear the selection.
+Video-only sources use **View / Viewing** instead; their movement and preset
+controls are disabled. Camera settings and selection keep keyboard focus
+when the list updates.
 
 Under **Settings → Appearance & startup**, choose a **Default camera for
 control** to select it each time the app starts, or **Remember last selected
@@ -29,7 +32,21 @@ the active camera selects the default or the first remaining controllable
 camera, falling back to a video-only camera if necessary.
 
 The same settings section offers saved **Dark** and **Light** themes. Dark is
-the default.
+the default, even if your system uses light mode. An explicit theme choice is
+preserved between runs and applied before the first paint, including the
+window background and native appearance.
+
+Settings apply immediately and save automatically. The Settings tab shows
+**Saving changes**, **All changes saved**, or **Not saved** with a **Retry
+saving** button. On a failed save, the edited settings remain active for the
+current session; the previously saved configuration is kept intact.
+
+Missing settings from older versions receive defaults. Invalid settings are
+recovered individually, with a visible recovery notice and a backup named
+`ptzctrl-config.json.recovery-...` alongside the configuration in the app data
+folder. A damaged JSON file is backed up before defaults are used. A file that
+cannot be read or backed up causes an explicit startup error rather than being
+silently overwritten.
 
 ## What works
 

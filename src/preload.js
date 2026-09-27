@@ -3,6 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('ptz', {
+  initialTheme: process.argv.includes('--ptz-theme=light') ? 'light' : 'dark',
   // config
   getConfig: () => ipcRenderer.invoke('config:get'),
   setMapping: (mapping) => ipcRenderer.invoke('config:setMapping', mapping),
@@ -57,4 +58,9 @@ contextBridge.exposeInMainWorld('ptz', {
   power: (id, on) => ipcRenderer.send('ptz:power', id, on),
   menu: (id) => ipcRenderer.send('ptz:menu', id),
   stopAll: () => ipcRenderer.send('ptz:stopAll'),
+  onStopAll: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('ptz:stopped', listener);
+    return () => ipcRenderer.removeListener('ptz:stopped', listener);
+  },
 });

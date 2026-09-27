@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, dialog, ipcMain } = require('electron');
 const path = require('path');
 const { ViscaPool, VISCA, DRIVE_KEYS } = require('./visca');
 const { discoverCameras } = require('./discovery');
@@ -17,6 +17,12 @@ let nativePadTimer = null;
 let quitting = false;      // true once the user actually chose to exit
 let trayTipShown = false;  // balloon shown at most once per run
 const pool = new ViscaPool();
+const THEME_BACKGROUNDS = { dark: '#101613', light: '#f1f2ee' };
+
+function applyTheme(theme) {
+  nativeTheme.themeSource = theme;
+  if (win && !win.isDestroyed()) win.setBackgroundColor(THEME_BACKGROUNDS[theme]);
+}
 
 // Velocity commands ride on lossy UDP; the keeper re-sends the current drive
 // periodically and repeats stops once, so one dropped datagram can't strand a
@@ -47,12 +53,13 @@ function connFor(id) {
 }
 
 function createWindow() {
+  const theme = store.getAll().settings.theme;
   win = new BrowserWindow({
     width: 1180,
     height: 780,
     minWidth: 680,
     minHeight: 500,
-    backgroundColor: '#0f1115',
+    backgroundColor: THEME_BACKGROUNDS[theme],
     title: 'PTZ CTRL',
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: {
@@ -60,6 +67,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      additionalArguments: [`--ptz-theme=${theme}`],
       // Keep polling the controller and driving cameras when the window
       // is unfocused, minimized, or covered by other windows.
       backgroundThrottling: false,
@@ -113,6 +121,8 @@ function stopAllCameras() {
     keeper.zoom(cam.id, 0);
     keeper.focus(cam.id, 0);
   }
+  // The tray stop must also cancel renderer ramps, tracking and USB motion.
+  if (win && !win.isDestroyed()) win.webContents.send('ptz:stopped');
 }
 
 function createTray() {
@@ -167,11 +177,16 @@ if (!app.requestSingleInstanceLock()) {
 
 app.whenReady().then(() => {
   store = new Store(app.getPath('userData'));
+  applyTheme(store.getAll().settings.theme);
   streams = new StreamManager((id) => getCamera(id));
   registerIpc();
   createTray();
   createWindow();
   app.on('activate', () => showWindow());
+}).catch((err) => {
+  console.error('Could not initialize PTZ CTRL:', err.message);
+  dialog.showErrorBox('Could not open PTZ CTRL', err.message);
+  app.quit();
 });
 
 // With the tray keeping the app alive, this only fires while quitting (the
@@ -197,7 +212,11 @@ function registerIpc() {
   ipcMain.handle('config:get', () => store.getAll());
   ipcMain.handle('config:setMapping', (e, mapping) => store.setMapping(mapping));
   ipcMain.handle('config:resetMapping', () => store.resetMapping());
-  ipcMain.handle('config:setSettings', (e, settings) => store.setSettings(settings));
+  ipcMain.handle('config:setSettings', (e, settings) => {
+    const saved = store.setSettings(settings);
+    applyTheme(saved.theme);
+    return saved;
+  });
 
   // ------------------------- cameras -------------------------
   ipcMain.handle('cameras:add', (e, cam) => store.addCamera(cam));
@@ -207,9 +226,9 @@ function registerIpc() {
     return cam;
   });
   ipcMain.handle('cameras:remove', (e, id) => {
+    store.removeCamera(id);
     keeper.remove(id);
     pool.remove(id);
-    store.removeCamera(id);
     return store.getAll();
   });
   ipcMain.handle('cameras:setActive', (e, id) => store.setActiveCamera(id));
