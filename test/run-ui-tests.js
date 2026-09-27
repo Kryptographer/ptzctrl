@@ -46,6 +46,34 @@ function controls() {
   return { window, document, el, context, counts: () => [starts, stops] };
 }
 
+test('the app logo uses the current dark theme palette', () => {
+  const svg = fs.readFileSync(require.resolve('../build/icon.svg'), 'utf8');
+  const css = fs.readFileSync(require.resolve('../src/renderer/styles.css'), 'utf8');
+  const darkRule = css.match(/:root:not\(\[data-theme="light"\]\)\s*\{([^}]+)\}/);
+  assert(darkRule, 'the dark theme must be defined');
+  const colors = new Set(darkRule[1].match(/#[0-9a-f]{6}/gi));
+  for (const color of svg.match(/#[0-9a-f]{6}/gi)) {
+    assert(colors.has(color), `logo color ${color} must come from the dark theme`);
+  }
+  for (const token of ['bg-0', 'accent', 'text-1']) {
+    const color = darkRule[1].match(new RegExp(`--${token}:\\s*(#[0-9a-f]{6})`))[1];
+    assert(svg.includes(`"${color}"`), `the logo must use --${token}`);
+  }
+});
+
+test('desktop and runtime icons use identical full-resolution PNG artwork', () => {
+  const desktop = fs.readFileSync(require.resolve('../build/icon.png'));
+  const runtime = fs.readFileSync(require.resolve('../src/assets/icon.png'));
+  assert(runtime.equals(desktop), 'window/tray and packaged icons must not drift');
+  assert.equal(desktop.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.equal(desktop.subarray(12, 16).toString('ascii'), 'IHDR');
+  assert.equal(desktop.readUInt32BE(16), 1024);
+  assert.equal(desktop.readUInt32BE(20), 1024);
+  for (const platform of ['win', 'mac', 'linux']) {
+    assert.equal(require('../package.json').build[platform].icon, 'build/icon.png');
+  }
+});
+
 test('Space and Enter hold once through key repeat and stop on release', () => {
   for (const key of [' ', 'Enter']) {
     const h = controls();
